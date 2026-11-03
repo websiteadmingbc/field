@@ -9,7 +9,11 @@ import {
 } from 'react'
 import { loadAppData, resetDemoData, saveAppData, seedDemoPhotoBlobs } from '../lib/storage'
 import { savePhotoBlob } from '../lib/idb'
-import { todayISO, uid } from '../lib/utils'
+import { uid, todayISO } from '../lib/utils'
+import { getSupabase } from '../lib/supabase/client'
+import { loadRemoteAppData } from '../lib/supabase/loadAppData'
+import { addProjectNotice, updateProjectStatus as remoteUpdateStatus } from '../lib/supabase/projects'
+import { useAuth } from './AuthContext'
 import type {
   AppData,
   AppNotification,
@@ -27,6 +31,7 @@ import type {
 interface AppContextValue {
   data: AppData
   ready: boolean
+  remote: boolean
   currentUser: AppData['contacts'][number] | undefined
   unreadCount: number
   getJob: (id: string) => Job | undefined
@@ -47,39 +52,79 @@ interface AppContextValue {
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
   resetDemo: () => Promise<void>
+  refreshRemote: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { configured, session, profile } = useAuth()
+  const remote = Boolean(configured && session?.user)
+
   const [data, setData] = useState<AppData>(() => loadAppData())
   const [ready, setReady] = useState(false)
 
+  const refreshRemote = useCallback(async () => {
+    if (!session?.user) return
+    const remoteData = await loadRemoteAppData(session.user.id)
+    setData(remoteData)
+  }, [session?.user])
+
   useEffect(() => {
     let cancelled = false
+
     ;(async () => {
-      await seedDemoPhotoBlobs(data)
-      if (!cancelled) setReady(true)
+      if (remote && session?.user) {
+        try {
+          const remoteData = await loadRemoteAppData(session.user.id)
+          if (!cancelled) {
+            setData(remoteData)
+            setReady(true)
+          }
+        } catch (err) {
+          console.error(err)
+          if (!cancelled) setReady(true)
+        }
+        return
+      }
+
+      // Demo / local POC mode
+      const local = loadAppData()
+      await seedDemoPhotoBlobs(local)
+      if (!cancelled) {
+        setData(local)
+        setReady(true)
+      }
     })()
+
     return () => {
       cancelled = true
     }
-    // Seed once on mount with initial data
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [remote, session?.user?.id])
 
   useEffect(() => {
-    if (ready) saveAppData(data)
-  }, [data, ready])
+    if (ready && !remote) saveAppData(data)
+  }, [data, ready, remote])
 
   const persist = useCallback((updater: (prev: AppData) => AppData) => {
     setData(updater)
   }, [])
 
-  const currentUser = useMemo(
-    () => data.contacts.find((c) => c.id === data.currentUserId),
-    [data.contacts, data.currentUserId],
-  )
+  const currentUser = useMemo(() => {
+    if (remote && profile) {
+      return (
+        data.contacts.find((c) => c.id === profile.id) ?? {
+          id: profile.id,
+          name: profile.full_name,
+          role: profile.title || profile.app_role,
+          phone: profile.phone ?? '',
+          email: profile.email,
+          isCrew: true,
+        }
+      )
+    }
+    return data.contacts.find((c) => c.id === data.currentUserId)
+  }, [data.contacts, data.currentUserId, remote, profile])
 
   const unreadCount = useMemo(
     () => data.notifications.filter((n) => !n.read).length,
@@ -94,6 +139,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const updateJobStatus = useCallback(
     (jobId: string, status: JobStatus) => {
+      if (remote) {
+        void remoteUpdateStatus(jobId, status)
+          .then(() => refreshRemote())
+          .catch((err) => console.error(err))
+      }
       persist((prev) => ({
         ...prev,
         jobs: prev.jobs.map((j) => (j.id === jobId ? { ...j, status } : j)),
@@ -111,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ],
       }))
     },
-    [persist],
+    [persist, remote, refreshRemote],
   )
 
   const toggleChecklistItem = useCallback(
@@ -176,10 +226,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addNote = useCallback(
     (jobId: string, content: string) => {
+      const trimmed = content.trim()
+      if (remote) {
+        void addProjectNotice(jobId, trimmed)
+          .then(() => refreshRemote())
+          .catch((err) => console.error(err))
+      }
+
       const note: JobNote = {
         id: uid('note'),
         jobId,
-        content: content.trim(),
+        content: trimmed,
         authorId: data.currentUserId,
         createdAt: new Date().toISOString(),
       }
@@ -187,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: uid('notif'),
         type: 'note',
         title: 'New note added',
-        body: content.trim().slice(0, 120),
+        body: trimmed.slice(0, 120),
         jobId,
         createdAt: note.createdAt,
         read: false,
@@ -196,13 +253,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...prev,
         notes: [note, ...prev.notes],
         notifications: [notif, ...prev.notifications],
+        jobs: prev.jobs.map((j) =>
+          j.id === jobId ? { ...j, notices: [trimmed, ...j.notices] } : j,
+        ),
         activity: [
           {
             id: uid('act'),
             jobId,
             type: 'note',
             title: 'Note added',
-            body: content.trim(),
+            body: trimmed,
             createdAt: note.createdAt,
             authorId: prev.currentUserId,
           },
@@ -210,13 +270,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ],
       }))
     },
-    [data.currentUserId, persist],
+    [data.currentUserId, persist, remote, refreshRemote],
   )
 
   const saveDailyLog = useCallback(
     (log: Partial<DailyLog> & { jobId: string }, status: LogStatus) => {
       const now = new Date().toISOString()
-      let logId = log.id ?? uid('log')
+      const logId = log.id ?? uid('log')
+
+      if (remote) {
+        const supabase = getSupabase()
+        if (supabase && session?.user) {
+          const payload = {
+            project_id: log.jobId,
+            author_id: session.user.id,
+            log_date: log.date ?? todayISO(),
+            work_completed: log.workCompleted ?? '',
+            materials_used: log.materialsUsed ?? '',
+            issues: log.issues ?? '',
+            notes_for_next: log.notesForNext ?? '',
+            status,
+          }
+          void (async () => {
+            const result = log.id
+              ? await supabase.from('daily_logs').update(payload).eq('id', log.id)
+              : await supabase.from('daily_logs').insert(payload)
+            if (result.error) throw result.error
+            await refreshRemote()
+          })().catch((err) => console.error(err))
+        }
+      }
 
       persist((prev) => {
         const existing = log.id ? prev.dailyLogs.find((l) => l.id === log.id) : undefined
@@ -260,17 +343,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       return logId
     },
-    [persist],
+    [persist, remote, session?.user, refreshRemote],
   )
 
   const deleteDailyLog = useCallback(
     (logId: string) => {
+      if (remote) {
+        const supabase = getSupabase()
+        void (async () => {
+          if (!supabase) return
+          const { error } = await supabase.from('daily_logs').delete().eq('id', logId)
+          if (error) throw error
+          await refreshRemote()
+        })().catch((err) => console.error(err))
+      }
       persist((prev) => ({
         ...prev,
         dailyLogs: prev.dailyLogs.filter((l) => l.id !== logId),
       }))
     },
-    [persist],
+    [persist, remote, refreshRemote],
   )
 
   const addPhoto = useCallback(
@@ -280,6 +372,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
       category: PhotoCategory
       caption: string
     }) => {
+      if (remote) {
+        const supabase = getSupabase()
+        if (!supabase || !session?.user) throw new Error('Not signed in')
+        const id = crypto.randomUUID()
+        const ext = input.file.name.split('.').pop() || 'jpg'
+        const storagePath = `${input.jobId}/${id}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('job-photos')
+          .upload(storagePath, input.file, { contentType: input.file.type, upsert: false })
+        if (uploadError) throw uploadError
+        const { error: insertError } = await supabase.from('photos').insert({
+          id,
+          project_id: input.jobId,
+          author_id: session.user.id,
+          category: input.category,
+          caption: input.caption,
+          storage_path: storagePath,
+        })
+        if (insertError) throw insertError
+        await refreshRemote()
+        return id
+      }
+
       const id = uid('photo')
       await savePhotoBlob(id, input.file)
       const photo: JobPhoto = {
@@ -309,7 +424,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }))
       return id
     },
-    [data.currentUserId, persist],
+    [data.currentUserId, persist, remote, session?.user, refreshRemote],
   )
 
   const markNotificationRead = useCallback(
@@ -332,13 +447,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [persist])
 
   const resetDemo = useCallback(async () => {
+    if (remote) return
     const fresh = await resetDemoData()
     setData(fresh)
-  }, [])
+  }, [remote])
 
   const value: AppContextValue = {
     data,
     ready,
+    remote,
     currentUser,
     unreadCount,
     getJob,
@@ -354,6 +471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     markNotificationRead,
     markAllNotificationsRead,
     resetDemo,
+    refreshRemote,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

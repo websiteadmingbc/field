@@ -5,39 +5,75 @@ import {
   Camera,
   ClipboardList,
   Home,
+  LayoutDashboard,
+  LogOut,
   Menu,
   Shield,
   Users,
   X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../../context/AppContext'
+import { useAuth } from '../../context/AuthContext'
 import { BrandMark } from '../BrandMark'
 import { ThemeToggle } from '../ThemeToggle'
 import { cn } from '../../lib/utils'
+import { isOfficeRole, roleLabel } from '../../types/auth'
 
-const navItems = [
-  { to: '/', label: 'Today', icon: Home, end: true },
-  { to: '/jobs', label: 'My Jobs', icon: Briefcase },
-  { to: '/log', label: 'Daily Log', icon: ClipboardList },
-  { to: '/photos', label: 'Photos', icon: Camera },
-  { to: '/team', label: 'Team', icon: Users },
-  { to: '/notifications', label: 'Updates', icon: Bell },
-  { to: '/privacy', label: 'Privacy', icon: Shield },
-]
-
-const mobileNav = [
-  { to: '/', label: 'Today', icon: Home, end: true },
-  { to: '/jobs', label: 'Jobs', icon: Briefcase },
-  { to: '/log', label: 'Log', icon: ClipboardList },
-  { to: '/photos', label: 'Photos', icon: Camera },
-  { to: '/notifications', label: 'Updates', icon: Bell },
-]
+type NavItem = {
+  to: string
+  label: string
+  icon: typeof Home
+  end?: boolean
+}
 
 export function AppShell() {
-  const { currentUser, unreadCount, resetDemo } = useApp()
+  const { currentUser, unreadCount, resetDemo, remote } = useApp()
+  const { configured, profile, signOut, isOffice } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+
+  const navItems = useMemo<NavItem[]>(() => {
+    const field: NavItem[] = [
+      ...(isOffice
+        ? [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+        : [{ to: '/', label: 'Today', icon: Home, end: true }]),
+      { to: '/jobs', label: isOffice ? 'Jobs' : 'My Jobs', icon: Briefcase },
+      { to: '/log', label: 'Daily Log', icon: ClipboardList },
+      { to: '/photos', label: 'Photos', icon: Camera },
+      { to: '/team', label: 'Team', icon: Users },
+      { to: '/notifications', label: 'Updates', icon: Bell },
+      { to: '/privacy', label: 'Privacy', icon: Shield },
+    ]
+    if (isOffice && !field.some((i) => i.to === '/')) {
+      field.splice(1, 0, { to: '/', label: 'Today', icon: Home, end: true })
+    }
+    return field
+  }, [isOffice])
+
+  const mobileNav = useMemo<NavItem[]>(() => {
+    if (isOffice) {
+      return [
+        { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
+        { to: '/jobs', label: 'Jobs', icon: Briefcase },
+        { to: '/log', label: 'Log', icon: ClipboardList },
+        { to: '/photos', label: 'Photos', icon: Camera },
+        { to: '/notifications', label: 'Updates', icon: Bell },
+      ]
+    }
+    return [
+      { to: '/', label: 'Today', icon: Home, end: true },
+      { to: '/jobs', label: 'Jobs', icon: Briefcase },
+      { to: '/log', label: 'Log', icon: ClipboardList },
+      { to: '/photos', label: 'Photos', icon: Camera },
+      { to: '/notifications', label: 'Updates', icon: Bell },
+    ]
+  }, [isOffice])
+
+  const roleText =
+    profile && isOfficeRole(profile.app_role)
+      ? roleLabel(profile.app_role)
+      : currentUser?.role
 
   return (
     <div className="min-h-dvh bg-surface lg:flex">
@@ -78,23 +114,39 @@ export function AppShell() {
 
         <div className="border-t border-gold-line/20 p-4">
           <div className="rounded-md border border-gold-line/30 bg-white/5 px-3 py-3">
-            <p className="text-sm font-semibold">{currentUser?.name ?? 'Crew member'}</p>
-            <p className="text-xs uppercase tracking-wider text-teal">{currentUser?.role}</p>
+            <p className="text-sm font-semibold">
+              {profile?.full_name ?? currentUser?.name ?? 'Crew member'}
+            </p>
+            <p className="text-xs uppercase tracking-wider text-teal">{roleText}</p>
+            {remote && (
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-white/35">Live · Supabase</p>
+            )}
           </div>
           <div className="mt-2">
             <ThemeToggle variant="sidebar" />
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm('Reset all demo data to the original sample set?')) {
-                void resetDemo()
-              }
-            }}
-            className="mt-1 w-full rounded-md px-3 py-2 text-left text-xs uppercase tracking-wider text-white/40 transition hover:bg-white/5 hover:text-white/70"
-          >
-            Reset Demo Data
-          </button>
+          {configured ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs uppercase tracking-wider text-white/40 transition hover:bg-white/5 hover:text-white/70"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign out
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Reset all demo data to the original sample set?')) {
+                  void resetDemo()
+                }
+              }}
+              className="mt-1 w-full rounded-md px-3 py-2 text-left text-xs uppercase tracking-wider text-white/40 transition hover:bg-white/5 hover:text-white/70"
+            >
+              Reset Demo Data
+            </button>
+          )}
         </div>
       </aside>
 
@@ -142,7 +194,9 @@ export function AppShell() {
               <div className="flex items-center justify-between border-b border-gold-line/25 px-4 py-4">
                 <div>
                   <p className="font-display font-semibold uppercase tracking-wide">Menu</p>
-                  <p className="text-xs text-teal">{currentUser?.name}</p>
+                  <p className="text-xs text-teal">
+                    {profile?.full_name ?? currentUser?.name}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -173,18 +227,32 @@ export function AppShell() {
               </nav>
               <div className="space-y-2 border-t border-gold-line/20 p-4">
                 <ThemeToggle variant="sidebar" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm('Reset all demo data to the original sample set?')) {
-                      void resetDemo()
+                {configured ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void signOut()
                       setMenuOpen(false)
-                    }
-                  }}
-                  className="w-full rounded-md border border-gold-line/30 px-3 py-2.5 text-sm uppercase tracking-wide text-white/70"
-                >
-                  Reset Demo Data
-                </button>
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-md border border-gold-line/30 px-3 py-2.5 text-sm uppercase tracking-wide text-white/70"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Sign out
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Reset all demo data to the original sample set?')) {
+                        void resetDemo()
+                        setMenuOpen(false)
+                      }
+                    }}
+                    className="w-full rounded-md border border-gold-line/30 px-3 py-2.5 text-sm uppercase tracking-wide text-white/70"
+                  >
+                    Reset Demo Data
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -194,7 +262,7 @@ export function AppShell() {
           key={location.pathname}
           className="flex-1 px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:py-8 lg:pb-8"
         >
-          <div className="mx-auto max-w-5xl">
+          <div className={cn('mx-auto', isOffice ? 'max-w-6xl' : 'max-w-5xl')}>
             <Outlet />
           </div>
         </main>

@@ -1,0 +1,12 @@
+<!--
+  Supabase → Authentication → Email Templates → Magic Link
+  Paste this so the email shows a code (any device) and a clickable
+  link that works across devices (token_hash, not PKCE).
+
+  Set Site URL to https://field.greatbrittongc.com for production.
+-->
+<h2>Sign in to Britton Field</h2>
+<p>Use this one-time code on the sign-in screen (works on any device):</p>
+<p style="font-size: 28px; letter-spacing: 0.25em; font-weight: 700;">{{ .Token }}</p>
+<p>Or <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email">click here to sign in</a>.</p>
+<p style="color: #666; font-size: 12px;">If you did not request this, you can ignore this email.</p>

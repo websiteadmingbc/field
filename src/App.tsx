@@ -1,36 +1,49 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider } from './context/AppContext'
+import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { RequireAuth } from './components/auth/RequireAuth'
 import { AppShell } from './components/layout/AppShell'
-import { TodayPage } from './pages/TodayPage'
-import { JobsPage } from './pages/JobsPage'
-import { JobDetailPage } from './pages/JobDetailPage'
+import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { DashboardPage } from './pages/DashboardPage'
 import { DailyLogPage } from './pages/DailyLogPage'
-import { PhotosPage } from './pages/PhotosPage'
-import { TeamPage } from './pages/TeamPage'
+import { HomeRedirect } from './pages/HomeRedirect'
+import { JobDetailPage } from './pages/JobDetailPage'
+import { JobsPage } from './pages/JobsPage'
+import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
+import { PhotosPage } from './pages/PhotosPage'
 import { PrivacyPage } from './pages/PrivacyPage'
+import { TeamPage } from './pages/TeamPage'
 
 export default function App() {
   return (
     <ThemeProvider>
-      <AppProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<TodayPage />} />
-              <Route path="jobs" element={<JobsPage />} />
-              <Route path="jobs/:jobId" element={<JobDetailPage />} />
-              <Route path="log" element={<DailyLogPage />} />
-              <Route path="photos" element={<PhotosPage />} />
-              <Route path="team" element={<TeamPage />} />
-              <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="privacy" element={<PrivacyPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
+              <Route element={<RequireAuth />}>
+                <Route element={<AppShell />}>
+                  <Route index element={<HomeRedirect />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="jobs" element={<JobsPage />} />
+                  <Route path="jobs/:jobId" element={<JobDetailPage />} />
+                  <Route path="log" element={<DailyLogPage />} />
+                  <Route path="photos" element={<PhotosPage />} />
+                  <Route path="team" element={<TeamPage />} />
+                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="privacy" element={<PrivacyPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </AppProvider>
+      </AuthProvider>
     </ThemeProvider>
   )
 }
