@@ -1,10 +1,200 @@
-:root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: #111827;
-  background: #f9fafb;
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Barlow", "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Oswald", "Barlow", ui-sans-serif, sans-serif;
+
+  --color-charcoal: var(--bf-charcoal);
+  --color-charcoal-light: var(--bf-charcoal-light);
+  --color-charcoal-muted: var(--bf-charcoal-muted);
+  --color-surface: var(--bf-surface);
+  --color-surface-raised: var(--bf-surface-raised);
+  --color-border: var(--bf-border);
+  --color-border-strong: var(--bf-border-strong);
+  --color-ink: var(--bf-ink);
+  --color-ink-muted: var(--bf-ink-muted);
+  --color-ink-subtle: var(--bf-ink-subtle);
+  /* Brand accent tokens (kept as teal-* for existing classnames) */
+  --color-teal: var(--bf-gold);
+  --color-teal-bright: var(--bf-gold-bright);
+  --color-teal-soft: var(--bf-gold-soft);
+  --color-teal-hover: var(--bf-gold-hover);
+  --color-teal-fill: var(--bf-gold-fill);
+  --color-teal-fill-hover: var(--bf-gold-fill-hover);
+  --color-on-teal: var(--bf-on-gold);
+  --color-gold: var(--bf-gold);
+  --color-gold-bright: var(--bf-gold-bright);
+  --color-gold-soft: var(--bf-gold-soft);
+  --color-gold-line: var(--bf-gold-line);
+  --color-amber: var(--bf-amber);
+  --color-amber-soft: var(--bf-amber-soft);
+  --color-rose: var(--bf-rose);
+  --color-rose-soft: var(--bf-rose-soft);
+  --color-sky: var(--bf-sky);
+  --color-sky-soft: var(--bf-sky-soft);
+  --color-emerald: var(--bf-emerald);
+  --color-emerald-soft: var(--bf-emerald-soft);
 }
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; }
-.shell { max-width: 640px; margin: 0 auto; padding: 48px 16px; }
-h1 { margin: 0 0 8px; font-size: 1.75rem; }
-code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; }
+
+/* Light: branded charcoal + gold accents on clean surfaces */
+:root {
+  --bf-charcoal: #111111;
+  --bf-charcoal-light: #1a1a1a;
+  --bf-charcoal-muted: #2e2e2e;
+  --bf-surface: #f3f2ef;
+  --bf-surface-raised: #ffffff;
+  --bf-border: #e4e1da;
+  --bf-border-strong: #cdc8bc;
+  --bf-ink: #111111;
+  --bf-ink-muted: #5c5a55;
+  --bf-ink-subtle: #8a877f;
+  --bf-gold: #a8841a;
+  --bf-gold-bright: #c9a227;
+  --bf-gold-soft: rgba(201, 162, 39, 0.16);
+  --bf-gold-hover: #8f7014;
+  --bf-gold-fill: #c9a227;
+  --bf-gold-fill-hover: #b8921f;
+  --bf-gold-line: #c9a227;
+  --bf-on-gold: #111111;
+  --bf-amber: #b45309;
+  --bf-amber-soft: #fef3c7;
+  --bf-rose: #be123c;
+  --bf-rose-soft: #ffe4e6;
+  --bf-sky: #0369a1;
+  --bf-sky-soft: #e0f2fe;
+  --bf-emerald: #047857;
+  --bf-emerald-soft: #d1fae5;
+  --bf-glow: transparent;
+}
+
+/* Dark: Great Britton Construction site palette */
+.dark {
+  --bf-charcoal: #0a0a0a;
+  --bf-charcoal-light: #141414;
+  --bf-charcoal-muted: #262626;
+  --bf-surface: #0e0e0e;
+  --bf-surface-raised: #171717;
+  --bf-border: #2a2a2a;
+  --bf-border-strong: #3d3d3d;
+  --bf-ink: #ffffff;
+  --bf-ink-muted: #c4c4c4;
+  --bf-ink-subtle: #8f8f8f;
+  --bf-gold: #d4af37;
+  --bf-gold-bright: #e8c547;
+  --bf-gold-soft: rgba(212, 175, 55, 0.16);
+  --bf-gold-hover: #e8c547;
+  --bf-gold-fill: #d4af37;
+  --bf-gold-fill-hover: #e0bc45;
+  --bf-gold-line: #c9a227;
+  --bf-on-gold: #0e0e0e;
+  --bf-amber: #e8c547;
+  --bf-amber-soft: rgba(232, 197, 71, 0.14);
+  --bf-rose: #fb7185;
+  --bf-rose-soft: rgba(251, 113, 133, 0.14);
+  --bf-sky: #7dd3fc;
+  --bf-sky-soft: rgba(125, 211, 252, 0.14);
+  --bf-emerald: #6ee7b7;
+  --bf-emerald-soft: rgba(110, 231, 183, 0.14);
+  --bf-glow: radial-gradient(ellipse 80% 55% at 70% 35%, rgba(120, 90, 30, 0.22), transparent 65%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background-color: var(--bf-surface);
+  background-image: var(--bf-glow);
+  background-attachment: fixed;
+  color: var(--bf-ink);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  background-color: var(--bf-surface-raised);
+  color: var(--bf-ink);
+}
+
+button {
+  font: inherit;
+}
+
+a:has(> button) {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--bf-gold-soft);
+  color: var(--bf-ink);
+}
+
+.font-display {
+  letter-spacing: 0.02em;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
