@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider } from './context/AppContext'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { RequireAdmin } from './components/auth/RequireAdmin'
 import { RequireAuth } from './components/auth/RequireAuth'
 import { AppShell } from './components/layout/AppShell'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
@@ -15,6 +16,11 @@ import { NotificationsPage } from './pages/NotificationsPage'
 import { PhotosPage } from './pages/PhotosPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TeamPage } from './pages/TeamPage'
+import { AdminLayout } from './pages/admin/AdminLayout'
+import { AdminPeoplePage } from './pages/admin/AdminPeoplePage'
+import { AdminProjectFormPage } from './pages/admin/AdminProjectFormPage'
+import { AdminProjectsPage } from './pages/admin/AdminProjectsPage'
+import { AdminRolesPage } from './pages/admin/AdminRolesPage'
 
 export default function App() {
   return (
@@ -37,6 +43,18 @@ export default function App() {
                   <Route path="team" element={<TeamPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="privacy" element={<PrivacyPage />} />
+
+                  <Route path="admin" element={<RequireAdmin />}>
+                    <Route element={<AdminLayout />}>
+                      <Route index element={<Navigate to="people" replace />} />
+                      <Route path="people" element={<AdminPeoplePage />} />
+                      <Route path="roles" element={<AdminRolesPage />} />
+                      <Route path="projects" element={<AdminProjectsPage />} />
+                      <Route path="projects/new" element={<AdminProjectFormPage />} />
+                      <Route path="projects/:projectId" element={<AdminProjectFormPage />} />
+                    </Route>
+                  </Route>
+
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Route>

@@ -1,4 +1,11 @@
-export type AppRole = 'admin' | 'project_manager' | 'site_supervisor' | 'crew'
+import {
+  ADMIN_CONSOLE_ROLES,
+  ROLE_LABELS,
+  USER_MANAGER_ROLES,
+  type AppRole,
+} from '../lib/rbac/matrix'
+
+export type { AppRole }
 
 export interface Profile {
   id: string
@@ -12,8 +19,37 @@ export interface Profile {
   updated_at: string
 }
 
+/** @deprecated Prefer canAccessAdminConsole — kept for call sites that mean Owner/Admin only */
+export function isAdminRole(role: AppRole | null | undefined): boolean {
+  return role === 'admin'
+}
+
+/** Owner/Admin, GM, Ops — can open Operations Admin console */
+export function canAccessAdminConsole(role: AppRole | null | undefined): boolean {
+  return !!role && ADMIN_CONSOLE_ROLES.includes(role)
+}
+
+/** Owner/Admin + GM — invite users and change roles */
+export function canManageUsers(role: AppRole | null | undefined): boolean {
+  return !!role && USER_MANAGER_ROLES.includes(role)
+}
+
+const OFFICE_ROLES: AppRole[] = [
+  'admin',
+  'general_manager',
+  'operations_manager',
+  'estimator',
+  'office_manager',
+  'bookkeeper',
+  'project_manager',
+  'project_coordinator',
+  'project_engineer',
+  'site_supervisor',
+  'safety_officer',
+]
+
 export function isOfficeRole(role: AppRole | null | undefined): boolean {
-  return role === 'admin' || role === 'project_manager' || role === 'site_supervisor'
+  return !!role && OFFICE_ROLES.includes(role)
 }
 
 export function canChangeJobStatus(role: AppRole | null | undefined): boolean {
@@ -25,14 +61,5 @@ export function canPostNotices(role: AppRole | null | undefined): boolean {
 }
 
 export function roleLabel(role: AppRole): string {
-  switch (role) {
-    case 'admin':
-      return 'Admin'
-    case 'project_manager':
-      return 'Project Manager'
-    case 'site_supervisor':
-      return 'Site Supervisor'
-    case 'crew':
-      return 'Crew'
-  }
+  return ROLE_LABELS[role] ?? role
 }

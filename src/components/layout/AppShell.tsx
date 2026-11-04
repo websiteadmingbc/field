@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Settings2,
   Shield,
   Users,
   X,
@@ -18,7 +19,7 @@ import { useAuth } from '../../context/AuthContext'
 import { BrandMark } from '../BrandMark'
 import { ThemeToggle } from '../ThemeToggle'
 import { cn } from '../../lib/utils'
-import { isOfficeRole, roleLabel } from '../../types/auth'
+import { canAccessAdminConsole, isOfficeRole, roleLabel } from '../../types/auth'
 
 type NavItem = {
   to: string
@@ -30,6 +31,7 @@ type NavItem = {
 export function AppShell() {
   const { currentUser, unreadCount, resetDemo, remote } = useApp()
   const { configured, profile, signOut, isOffice } = useAuth()
+  const showAdmin = canAccessAdminConsole(profile?.app_role)
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
 
@@ -43,20 +45,21 @@ export function AppShell() {
       { to: '/photos', label: 'Photos', icon: Camera },
       { to: '/team', label: 'Team', icon: Users },
       { to: '/notifications', label: 'Updates', icon: Bell },
+      ...(showAdmin ? [{ to: '/admin/people', label: 'Operations', icon: Settings2 }] : []),
       { to: '/privacy', label: 'Privacy', icon: Shield },
     ]
     if (isOffice && !field.some((i) => i.to === '/')) {
       field.splice(1, 0, { to: '/', label: 'Today', icon: Home, end: true })
     }
     return field
-  }, [isOffice])
+  }, [isOffice, showAdmin])
 
   const mobileNav = useMemo<NavItem[]>(() => {
     if (isOffice) {
       return [
         { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
         { to: '/jobs', label: 'Jobs', icon: Briefcase },
-        { to: '/log', label: 'Log', icon: ClipboardList },
+        ...(showAdmin ? [{ to: '/admin/people', label: 'Ops', icon: Settings2 }] : []),
         { to: '/photos', label: 'Photos', icon: Camera },
         { to: '/notifications', label: 'Updates', icon: Bell },
       ]
@@ -68,7 +71,7 @@ export function AppShell() {
       { to: '/photos', label: 'Photos', icon: Camera },
       { to: '/notifications', label: 'Updates', icon: Bell },
     ]
-  }, [isOffice])
+  }, [isOffice, showAdmin])
 
   const roleText =
     profile && isOfficeRole(profile.app_role)

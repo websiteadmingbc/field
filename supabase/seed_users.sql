@@ -1,11 +1,12 @@
 -- Run AFTER users exist in Authentication → Users
+-- AND after rbac_roles migrations have been applied.
 
 update public.profiles p
 set
   full_name = 'Paul Alcantar',
   title = 'General Manager',
   phone = '408-876-9483',
-  app_role = 'admin',
+  app_role = 'general_manager',
   active = true
 from auth.users u
 where p.id = u.id
@@ -16,7 +17,7 @@ set
   full_name = 'Eli Mohammadi',
   title = 'Operations Manager',
   phone = '510-432-8461',
-  app_role = 'admin',
+  app_role = 'operations_manager',
   active = true
 from auth.users u
 where p.id = u.id

@@ -12,6 +12,7 @@ import { Card, SectionHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Button } from '../components/ui/Button'
 import { useAuth } from '../context/AuthContext'
+import { canAccessAdminConsole } from '../types/auth'
 import {
   fetchNoticesForProjects,
   fetchProjects,
@@ -35,6 +36,7 @@ function statusCounts(projects: ProjectRow[]) {
 
 export function DashboardPage() {
   const { profile, configured } = useAuth()
+  const showAdmin = canAccessAdminConsole(profile?.app_role)
   const [projects, setProjects] = useState<ProjectRow[]>([])
   const [notices, setNotices] = useState<ProjectNotice[]>([])
   const [loading, setLoading] = useState(true)
@@ -104,13 +106,22 @@ export function DashboardPage() {
             </h1>
             <p className="mt-3 max-w-xl text-ink-muted">
               {profile ? roleLabel(profile.app_role) : 'Team'} overview — active jobs, holds, and
-              site notices. Projects and crew are managed in Supabase for version 1.
+              site notices. Company-wide people and roles live under Operations.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {showAdmin && (
+              <Link to="/admin/people">
+                <Button type="button" size="sm">
+                  Operations admin
+                </Button>
+              </Link>
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

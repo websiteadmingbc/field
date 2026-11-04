@@ -31,6 +31,20 @@ With Supabase configured, users sign in at `/login` via **email one-time code** 
 
 Roles and RLS match the proposal: crew see assigned jobs only; admin/PM see all; supervisors manage assigned jobs.
 
+### Admin screens
+
+Admins use **Admin** in the app (`/admin/projects`, `/admin/people`) to manage projects, assignments, site contacts, and invites.
+
+**Job title** (`profiles.title`) is display-only. **App role** (`profiles.app_role`) controls permissions: `admin` | `project_manager` | `site_supervisor` | `crew`.
+
+Invite emails need the Edge Function deployed once:
+
+```bash
+npx supabase login
+npx supabase functions deploy invite-user --project-ref znkucrtehtyoatxfnozw
+npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --project-ref znkucrtehtyoatxfnozw
+```
+
 ## Deploy
 
 Every push to `main` builds and deploys via `.github/workflows/deploy.yml`.
