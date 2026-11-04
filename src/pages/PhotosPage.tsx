@@ -7,6 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Lightbox } from '../components/ui/Lightbox'
 import { PhotoThumb } from '../components/ui/PhotoThumb'
 import { useApp } from '../context/AppContext'
+import { isLikelyImageFile } from '../lib/supabase/photos'
 import { cn } from '../lib/utils'
 import type { JobPhoto, PhotoCategory } from '../types'
 
@@ -18,16 +19,28 @@ const categories: Array<{ id: PhotoCategory | 'all'; label: string }> = [
   { id: 'issue', label: 'Issue' },
 ]
 
+/** iOS Safari often ignores clicks on display:none file inputs */
+const visuallyHiddenFileInput =
+  'absolute h-px w-px overflow-hidden whitespace-nowrap border-0 p-0 opacity-0'
+const fileInputStyle = {
+  clip: 'rect(0 0 0 0)',
+  clipPath: 'inset(50%)',
+  margin: '-1px',
+} as const
+
 export function PhotosPage() {
-  const { data, addPhoto, getJob } = useApp()
+  const { data, addPhoto, getJob, remote } = useApp()
   const [params, setParams] = useSearchParams()
   const jobFilter = params.get('job') ?? 'all'
   const [category, setCategory] = useState<PhotoCategory | 'all'>('all')
   const [caption, setCaption] = useState('')
   const [uploadCategory, setUploadCategory] = useState<PhotoCategory>('progress')
-  const [uploadJobId, setUploadJobId] = useState(jobFilter !== 'all' ? jobFilter : data.jobs[0]?.id ?? '')
+  const [uploadJobId, setUploadJobId] = useState(
+    jobFilter !== 'all' ? jobFilter : data.jobs[0]?.id ?? '',
+  )
   const [lightbox, setLightbox] = useState<JobPhoto | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
@@ -38,23 +51,39 @@ export function PhotosPage() {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }, [data.photos, jobFilter, category])
 
-  async function handleFiles(files: FileList | null) {
-    if (!files?.length || !uploadJobId) return
+  async function handleFiles(files: FileList | null, input: HTMLInputElement | null) {
+    if (!files?.length || !uploadJobId) {
+      if (!uploadJobId) setError('Select a job before adding a photo.')
+      return
+    }
+    setError(null)
     setUploading(true)
     try {
+      let saved = 0
       for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue
+        if (!isLikelyImageFile(file)) continue
         await addPhoto({
           jobId: uploadJobId,
           file,
           category: uploadCategory,
           caption: caption.trim(),
         })
+        saved += 1
       }
-      setCaption('')
-      setParams(uploadJobId ? { job: uploadJobId } : {})
+      if (saved === 0) {
+        setError('No image was selected. On iPhone, allow camera/photos access and try again.')
+      } else {
+        setCaption('')
+        setParams(uploadJobId ? { job: uploadJobId } : {})
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Photo upload failed'
+      setError(message)
+      console.error(err)
     } finally {
       setUploading(false)
+      // Allow selecting the same file again on iOS
+      if (input) input.value = ''
     }
   }
 
@@ -63,11 +92,13 @@ export function PhotosPage() {
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Photos</h1>
         <p className="mt-1 text-ink-muted">
-          Document sites when it helps the crew. Upload is optional — photos stay on this device.
+          {remote
+            ? 'Capture or upload site photos. They sync to the job for the whole crew.'
+            : 'Document sites when it helps the crew. Demo mode keeps photos on this device.'}
         </p>
       </header>
 
-      <Card className="p-5 animate-fade-up stagger-1">
+      <Card className="relative p-5 animate-fade-up stagger-1">
         <SectionHeader title="Add a photo" subtitle="From your library or camera" />
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block text-sm">
@@ -77,6 +108,7 @@ export function PhotosPage() {
               onChange={(e) => setUploadJobId(e.target.value)}
               className="h-11 w-full rounded-xl border border-border px-3"
             >
+              {data.jobs.length === 0 && <option value="">No jobs available</option>}
               {data.jobs.map((j) => (
                 <option key={j.id} value={j.id}>
                   {j.name}
@@ -110,16 +142,25 @@ export function PhotosPage() {
             className="h-11 w-full rounded-xl border border-border px-3"
           />
         </label>
+        {error && (
+          <p className="mt-3 rounded-md border border-rose/30 bg-rose-soft px-3 py-2 text-sm text-rose">
+            {error}
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}>
+          <Button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || !uploadJobId}
+          >
             <Upload className="h-4 w-4" />
-            Upload photo
+            {uploading ? 'Uploading…' : 'Upload photo'}
           </Button>
           <Button
             type="button"
             variant="outline"
             onClick={() => cameraRef.current?.click()}
-            disabled={uploading}
+            disabled={uploading || !uploadJobId}
           >
             <Camera className="h-4 w-4" />
             Take photo
@@ -128,18 +169,20 @@ export function PhotosPage() {
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,image/heic,image/heif,.heic,.heif"
           multiple
-          className="hidden"
-          onChange={(e) => void handleFiles(e.target.files)}
+          className={visuallyHiddenFileInput}
+          style={fileInputStyle}
+          onChange={(e) => void handleFiles(e.target.files, e.target)}
         />
         <input
           ref={cameraRef}
           type="file"
           accept="image/*"
           capture="environment"
-          className="hidden"
-          onChange={(e) => void handleFiles(e.target.files)}
+          className={visuallyHiddenFileInput}
+          style={fileInputStyle}
+          onChange={(e) => void handleFiles(e.target.files, e.target)}
         />
       </Card>
 
@@ -180,7 +223,7 @@ export function PhotosPage() {
           <EmptyState
             icon={<ImageIcon className="h-6 w-6" />}
             title="No photos here"
-            description="Upload a photo or switch filters to see demo gallery images."
+            description="Take or upload a photo to attach it to the selected job."
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

@@ -1,22 +1,31 @@
 import { useEffect, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { createPlaceholderBlob, getPhotoBlob, savePhotoBlob } from '../../lib/idb'
+import { getPhotoSignedUrl, isStoragePhotoPath } from '../../lib/supabase/photos'
 import type { JobPhoto } from '../../types'
 import { cn } from '../../lib/utils'
 
 const urlCache = new Map<string, string>()
 
-async function resolvePhotoBlob(photo: JobPhoto): Promise<Blob | null> {
+async function resolvePhotoUrl(photo: JobPhoto): Promise<string | null> {
   try {
+    if (isStoragePhotoPath(photo.blobKey)) {
+      return await getPhotoSignedUrl(photo.blobKey)
+    }
+
     const existing = await getPhotoBlob(photo.blobKey)
-    if (existing) return existing
+    if (existing) {
+      const objectUrl = URL.createObjectURL(existing)
+      return objectUrl
+    }
 
     if (photo.placeholderColor && photo.placeholderLabel) {
       const blob = await createPlaceholderBlob(photo.placeholderColor, photo.placeholderLabel)
       await savePhotoBlob(photo.blobKey, blob)
-      return blob
+      return URL.createObjectURL(blob)
     }
-  } catch {
+  } catch (err) {
+    console.error('Failed to resolve photo', err)
     return null
   }
   return null
@@ -52,8 +61,8 @@ export function usePhotoUrl(photo: JobPhoto | undefined): {
     let active = true
     setLoading(true)
 
-    void resolvePhotoBlob(photo).then((blob) => {
-      if (!blob) {
+    void resolvePhotoUrl(photo).then((resolved) => {
+      if (!resolved) {
         if (active) {
           setUrl(null)
           setLoading(false)
@@ -61,15 +70,14 @@ export function usePhotoUrl(photo: JobPhoto | undefined): {
         return
       }
 
-      // Always cache — even if this effect was cleaned up — so the next mount can use it
-      let objectUrl = urlCache.get(blobKey)
-      if (!objectUrl) {
-        objectUrl = URL.createObjectURL(blob)
-        urlCache.set(blobKey, objectUrl)
+      let next = urlCache.get(blobKey)
+      if (!next) {
+        next = resolved
+        urlCache.set(blobKey, next)
       }
 
       if (active) {
-        setUrl(objectUrl)
+        setUrl(next)
         setLoading(false)
       }
     })

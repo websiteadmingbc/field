@@ -12,6 +12,7 @@ import { savePhotoBlob } from '../lib/idb'
 import { uid, todayISO } from '../lib/utils'
 import { getSupabase } from '../lib/supabase/client'
 import { loadRemoteAppData } from '../lib/supabase/loadAppData'
+import { extensionForImage, guessImageContentType } from '../lib/supabase/photos'
 import { addProjectNotice, updateProjectStatus as remoteUpdateStatus } from '../lib/supabase/projects'
 import { useAuth } from './AuthContext'
 import type {
@@ -376,12 +377,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const supabase = getSupabase()
         if (!supabase || !session?.user) throw new Error('Not signed in')
         const id = crypto.randomUUID()
-        const ext = input.file.name.split('.').pop() || 'jpg'
+        const ext = extensionForImage(input.file)
+        const contentType = guessImageContentType(input.file)
         const storagePath = `${input.jobId}/${id}.${ext}`
         const { error: uploadError } = await supabase.storage
           .from('job-photos')
-          .upload(storagePath, input.file, { contentType: input.file.type, upsert: false })
-        if (uploadError) throw uploadError
+          .upload(storagePath, input.file, { contentType, upsert: false })
+        if (uploadError) {
+          throw new Error(uploadError.message || 'Photo upload failed')
+        }
         const { error: insertError } = await supabase.from('photos').insert({
           id,
           project_id: input.jobId,
@@ -390,7 +394,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           caption: input.caption,
           storage_path: storagePath,
         })
-        if (insertError) throw insertError
+        if (insertError) {
+          throw new Error(insertError.message || 'Could not save photo record')
+        }
         await refreshRemote()
         return id
       }
