@@ -6,7 +6,7 @@ export type JobType =
   | 'Exterior Renovation'
   | 'General Construction'
   | 'Property Maintenance'
-export type PhotoCategory = 'before' | 'progress' | 'after' | 'issue'
+export type PhotoCategory = 'before' | 'estimation' | 'progress' | 'after' | 'issue'
 export type LogStatus = 'draft' | 'submitted'
 export type MaterialStatus = 'needed' | 'ordered' | 'delivered' | 'missing'
 export type NotificationType =

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Trash2 } from 'lucide-react'
+import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
+import { Lightbox } from '../../components/ui/Lightbox'
+import { PhotoThumb } from '../../components/ui/PhotoThumb'
 import {
   APP_ROLE_OPTIONS,
   createProject,
@@ -24,10 +27,11 @@ import {
 } from '../../lib/supabase/admin'
 import type { Profile } from '../../types/auth'
 import { roleLabel } from '../../types/auth'
-import { statusLabel } from '../../lib/utils'
+import { geocodeAddress, statusLabel } from '../../lib/utils'
 import { useApp } from '../../context/AppContext'
+import type { JobPhoto } from '../../types'
 
-type Tab = 'details' | 'crew' | 'contacts'
+type Tab = 'details' | 'crew' | 'contacts' | 'photos'
 
 const fieldClass =
   'mt-1.5 h-11 w-full rounded-md border border-border bg-surface px-3 text-ink outline-none focus:border-gold-line'
@@ -38,7 +42,7 @@ export function AdminProjectFormPage() {
   const { projectId } = useParams()
   const isNew = !projectId || projectId === 'new'
   const navigate = useNavigate()
-  const { refreshRemote, remote } = useApp()
+  const { refreshRemote, remote, data } = useApp()
 
   const [tab, setTab] = useState<Tab>('details')
   const [form, setForm] = useState<ProjectInput>(emptyProjectInput())
@@ -57,6 +61,17 @@ export function AdminProjectFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<JobPhoto | null>(null)
+
+  const projectPhotos = useMemo(
+    () =>
+      !projectId || isNew
+        ? []
+        : data.photos
+            .filter((p) => p.jobId === projectId)
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [data.photos, projectId, isNew],
+  )
 
   const title = useMemo(
     () => (isNew ? 'New project' : form.name || 'Edit project'),
@@ -122,6 +137,18 @@ export function AdminProjectFormPage() {
         job_number: form.job_number.trim(),
         name: form.name.trim(),
         scheduled_date: form.scheduled_date || null,
+      }
+      // Fill map pins from the street address when coords are missing
+      if ((payload.lat == null || payload.lng == null || (payload.lat === 0 && payload.lng === 0)) &&
+          payload.address.trim()) {
+        const coords = await geocodeAddress(
+          `${payload.address}, ${payload.city}, ${payload.state} ${payload.zip}`,
+        )
+        if (coords) {
+          payload.lat = coords.lat
+          payload.lng = coords.lng
+          setForm((prev) => ({ ...prev, lat: coords.lat, lng: coords.lng }))
+        }
       }
       if (isNew) {
         const created = await createProject(payload)
@@ -248,6 +275,7 @@ export function AdminProjectFormPage() {
               ['details', 'Details'],
               ['crew', 'Crew assignments'],
               ['contacts', 'Site contacts'],
+              ['photos', 'Photos'],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -582,6 +610,54 @@ export function AdminProjectFormPage() {
               </Button>
             </form>
           </Card>
+        </div>
+      )}
+
+      {!isNew && tab === 'photos' && projectId && (
+        <div className="space-y-4">
+          <Card className="p-5">
+            <SectionHeader
+              title="Project photos"
+              subtitle="Same master library as Photos — filtered to this job"
+              action={
+                <Link
+                  to={`/photos?job=${projectId}`}
+                  className="text-sm font-semibold text-teal hover:underline"
+                >
+                  Open library
+                </Link>
+              }
+            />
+            <PhotoCapturePanel
+              jobId={projectId}
+              jobName={form.name}
+              lockedJob
+              defaultCategory="estimation"
+              onUploaded={() => {
+                if (remote) void refreshRemote()
+              }}
+            />
+          </Card>
+          {projectPhotos.length === 0 ? (
+            <p className="text-sm text-ink-muted">No photos linked to this project yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {projectPhotos.map((p) => (
+                <div key={p.id} className="space-y-1">
+                  <PhotoThumb photo={p} onClick={() => setLightbox(p)} />
+                  <p className="truncate px-0.5 text-xs capitalize text-ink-muted">
+                    {p.category}
+                    {p.caption ? ` · ${p.caption}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+          <Lightbox
+            key={lightbox?.id ?? 'closed'}
+            photo={lightbox}
+            onClose={() => setLightbox(null)}
+          />
         </div>
       )}
     </div>

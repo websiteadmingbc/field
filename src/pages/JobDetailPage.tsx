@@ -15,6 +15,7 @@ import {
   Plus,
 } from 'lucide-react'
 import { LocationDetailsModal } from '../components/LocationDetailsModal'
+import { PhotoCapturePanel } from '../components/PhotoCapturePanel'
 import { Button } from '../components/ui/Button'
 import { Card, SectionHeader } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -30,6 +31,7 @@ import {
   formatTime,
   fullAddress,
   googleMapsPlaceUrl,
+  hasMapCoords,
   phoneHref,
   staticMapPreviewUrl,
 } from '../lib/utils'
@@ -49,6 +51,8 @@ export function JobDetailPage() {
     addMaterial,
     updateMaterialStatus,
     data,
+    remote,
+    refreshRemote,
   } = useApp()
   const job = getJob(jobId ?? '')
   const [noteText, setNoteText] = useState('')
@@ -66,7 +70,10 @@ export function JobDetailPage() {
   )
 
   const photos = useMemo(
-    () => data.photos.filter((p) => p.jobId === job?.id).slice(0, 6),
+    () =>
+      data.photos
+        .filter((p) => p.jobId === job?.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.photos, job?.id],
   )
 
@@ -195,13 +202,24 @@ export function JobDetailPage() {
         />
         <Card className="overflow-hidden">
           <div className="relative aspect-[16/9] w-full bg-charcoal-muted sm:aspect-[21/9]">
-            <iframe
-              title="Map preview"
-              src={staticMapPreviewUrl(job)}
-              className="h-full w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
+            {hasMapCoords(job) && staticMapPreviewUrl(job) ? (
+              <iframe
+                title="Map preview"
+                src={staticMapPreviewUrl(job)!}
+                className="h-full w-full border-0"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                <MapPin className="h-8 w-8 text-teal" />
+                <p className="text-sm font-semibold text-white">Map preview unavailable</p>
+                <p className="max-w-sm text-xs text-white/60">
+                  This job is missing map coordinates. Use Open in Maps, or edit the project address
+                  in Admin so we can place it on the map.
+                </p>
+              </div>
+            )}
             <a
               href={googleMapsPlaceUrl(job)}
               target="_blank"
@@ -442,24 +460,50 @@ export function JobDetailPage() {
         </Card>
       </section>
 
-      {/* Photos preview */}
-      {photos.length > 0 && (
-        <section>
-          <SectionHeader
-            title="Photos"
-            action={
-              <Link to={`/photos?job=${job.id}`} className="text-sm font-semibold text-teal hover:underline">
-                View all
-              </Link>
-            }
+      {/* Photos from master library for this project */}
+      <section className="space-y-4">
+        <SectionHeader
+          title="Project photos"
+          subtitle={`${photos.length} in library for this job`}
+          action={
+            <Link
+              to={`/photos?job=${job.id}`}
+              className="text-sm font-semibold text-teal hover:underline"
+            >
+              Open library
+            </Link>
+          }
+        />
+        <Card className="p-5">
+          <PhotoCapturePanel
+            jobId={job.id}
+            jobName={job.name}
+            lockedJob
+            defaultCategory="progress"
+            onUploaded={() => {
+              if (remote) void refreshRemote()
+            }}
           />
+        </Card>
+        {photos.length === 0 ? (
+          <p className="text-sm text-ink-muted">
+            No photos linked yet. Capture above — they are saved to the master library and this
+            project automatically.
+          </p>
+        ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {photos.map((p) => (
-              <PhotoThumb key={p.id} photo={p} onClick={() => setLightbox(p)} />
+              <div key={p.id} className="space-y-1">
+                <PhotoThumb photo={p} onClick={() => setLightbox(p)} />
+                <p className="truncate px-0.5 text-xs capitalize text-ink-muted">
+                  {p.category}
+                  {p.caption ? ` · ${p.caption}` : ''}
+                </p>
+              </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Activity */}
       <section>

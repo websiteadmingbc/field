@@ -8,6 +8,7 @@ import {
   fullAddress,
   googleMapsPlaceUrl,
   googleMapsUrl,
+  hasMapCoords,
   phoneHref,
   staticMapPreviewUrl,
 } from '../lib/utils'
@@ -86,13 +87,21 @@ export function LocationDetailsModal({
 
         {/* Map */}
         <div className="relative mx-5 aspect-[16/10] overflow-hidden rounded-xl border border-border bg-charcoal-muted">
-          <iframe
-            title={`Map of ${job.name}`}
-            src={staticMapPreviewUrl(job)}
-            className="h-full w-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
+          {hasMapCoords(job) && staticMapPreviewUrl(job) ? (
+            <iframe
+              title={`Map of ${job.name}`}
+              src={staticMapPreviewUrl(job)!}
+              className="h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+              <MapPin className="h-7 w-7 text-teal" />
+              <p className="text-sm font-semibold text-white">No map coordinates yet</p>
+              <p className="text-xs text-white/60">Open in Maps still works from the address.</p>
+            </div>
+          )}
           <a
             href={mapsPlace}
             target="_blank"

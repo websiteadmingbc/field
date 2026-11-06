@@ -55,10 +55,44 @@ export function appleMapsUrl(job: Job): string {
   return `https://maps.apple.com/?daddr=${encodeURIComponent(fullAddress(job))}`
 }
 
-export function staticMapPreviewUrl(job: Job): string {
-  // OpenStreetMap embed-style static preview via openstreetmap.org (no API key)
+/** True when the job has real map coordinates (not missing / 0,0 ocean fallback). */
+export function hasMapCoords(job: Pick<Job, 'lat' | 'lng'>): boolean {
+  return (
+    typeof job.lat === 'number' &&
+    typeof job.lng === 'number' &&
+    Number.isFinite(job.lat) &&
+    Number.isFinite(job.lng) &&
+    !(job.lat === 0 && job.lng === 0)
+  )
+}
+
+export function staticMapPreviewUrl(job: Job): string | null {
+  if (!hasMapCoords(job)) return null
   const { lat, lng } = job
+  // OpenStreetMap embed (no API key)
   return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.01}%2C${lat - 0.008}%2C${lng + 0.01}%2C${lat + 0.008}&layer=mapnik&marker=${lat}%2C${lng}`
+}
+
+/** Geocode a street address via OpenStreetMap Nominatim (no API key; rate-limited). */
+export async function geocodeAddress(query: string): Promise<{ lat: number; lng: number } | null> {
+  const q = query.trim()
+  if (!q) return null
+  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      // Nominatim requires a valid identifying User-Agent
+      'User-Agent': 'BrittonField/1.0 (field.greatbrittongc.com)',
+    },
+  })
+  if (!res.ok) return null
+  const data = (await res.json()) as Array<{ lat: string; lon: string }>
+  const hit = data[0]
+  if (!hit) return null
+  const lat = Number(hit.lat)
+  const lng = Number(hit.lon)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  return { lat, lng }
 }
 
 export function statusLabel(status: JobStatus): string {
