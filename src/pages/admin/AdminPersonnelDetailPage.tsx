@@ -546,7 +546,7 @@ function OverviewSection({
                 : '—',
             ],
             [
-              'Address',
+              'Mailing address',
               [person.business_address, person.city, person.state, person.zip]
                 .filter(Boolean)
                 .join(', ') || '—',

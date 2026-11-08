@@ -330,10 +330,11 @@ export function AdminPersonnelFormPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Business address" className="sm:col-span-2 lg:col-span-3">
+            <Field label="Mailing address" className="sm:col-span-2 lg:col-span-3">
               <input
                 value={form.business_address}
                 onChange={(e) => patchForm({ business_address: e.target.value })}
+                placeholder="Work or mailing address — not home"
                 className={fieldClass}
               />
             </Field>
