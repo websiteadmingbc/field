@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   Bell,
   Briefcase,
+  Building2,
   Camera,
   ClipboardList,
   Home,
@@ -44,6 +45,7 @@ export function AppShell() {
       { to: '/log', label: 'Daily Log', icon: ClipboardList },
       { to: '/photos', label: 'Photos', icon: Camera },
       { to: '/team', label: 'Team', icon: Users },
+      { to: '/customers', label: 'Customers', icon: Building2 },
       { to: '/notifications', label: 'Updates', icon: Bell },
       ...(showAdmin ? [{ to: '/admin/people', label: 'Operations', icon: Settings2 }] : []),
       { to: '/privacy', label: 'Privacy', icon: Shield },

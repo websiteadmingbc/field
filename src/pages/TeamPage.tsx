@@ -6,57 +6,34 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { SearchInput } from '../components/ui/SearchInput'
 import { useApp } from '../context/AppContext'
-import { cn, emailHref, phoneHref } from '../lib/utils'
+import { emailHref, phoneHref } from '../lib/utils'
 
 export function TeamPage() {
   const { data, getJob } = useApp()
   const [query, setQuery] = useState('')
-  const [tab, setTab] = useState<'crew' | 'contacts'>('crew')
 
   const people = useMemo(() => {
     const q = query.trim().toLowerCase()
     return data.contacts
-      .filter((c) => (tab === 'crew' ? c.isCrew : !c.isCrew))
+      .filter((c) => c.isCrew)
       .filter((c) => {
         if (!q) return true
         return `${c.name} ${c.role} ${c.phone} ${c.email ?? ''}`.toLowerCase().includes(q)
       })
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [data.contacts, query, tab])
+  }, [data.contacts, query])
 
   return (
     <div className="space-y-6">
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Team Directory</h1>
         <p className="mt-1 text-ink-muted">
-          Call or email crew and site contacts. No personal addresses or live locations.
+          Great Britton crew — call or email. Customer contacts live under Customers.
         </p>
       </header>
 
-      <div className="space-y-3 animate-fade-up stagger-1">
+      <div className="animate-fade-up stagger-1">
         <SearchInput value={query} onChange={setQuery} placeholder="Search by name or role…" />
-        <div className="flex gap-2">
-          {(
-            [
-              ['crew', 'Crew'],
-              ['contacts', 'Site contacts'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={cn(
-                'rounded-full px-4 py-2 text-sm font-semibold',
-                tab === id
-                  ? 'bg-teal-fill text-on-teal'
-                  : 'border border-gold-line/40 bg-surface-raised text-ink-muted',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {people.length === 0 ? (
@@ -105,7 +82,7 @@ export function TeamPage() {
                 {projects.length > 0 && (
                   <div className="mt-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
-                      Projects
+                      Assigned jobs
                     </p>
                     <ul className="mt-1.5 space-y-1">
                       {projects.slice(0, 4).map((job) => (

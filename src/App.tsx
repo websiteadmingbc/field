@@ -15,6 +15,7 @@ import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { PhotosPage } from './pages/PhotosPage'
 import { PrivacyPage } from './pages/PrivacyPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { TeamPage } from './pages/TeamPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminPersonnelDetailPage } from './pages/admin/AdminPersonnelDetailPage'
@@ -43,6 +44,7 @@ export default function App() {
                   <Route path="log" element={<DailyLogPage />} />
                   <Route path="photos" element={<PhotosPage />} />
                   <Route path="team" element={<TeamPage />} />
+                  <Route path="customers" element={<CustomersPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
                   <Route path="privacy" element={<PrivacyPage />} />
 
