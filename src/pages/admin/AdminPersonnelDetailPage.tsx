@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Download,
@@ -20,6 +20,7 @@ import {
   deleteCertification,
   deleteInsurance,
   deleteLicense,
+  deletePersonnel,
   deletePersonnelDocument,
   deletePersonnelProjectAssignment,
   fetchActivity,
@@ -88,6 +89,7 @@ type TabKey =
 
 export function AdminPersonnelDetailPage() {
   const { personnelId } = useParams()
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const canEdit = canManageUsers(profile?.app_role)
 
@@ -110,6 +112,9 @@ export function AdminPersonnelDetailPage() {
 
   const [inviteRole, setInviteRole] = useState<AppRole>('tradesperson')
   const [inviting, setInviting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     if (!personnelId) return
@@ -221,6 +226,33 @@ export function AdminPersonnelDetailPage() {
     }
   }
 
+  const deleteConfirmMatches = useMemo(() => {
+    if (!person) return false
+    const typed = deleteConfirmText.trim()
+    return (
+      typed.localeCompare(person.personnel_code, undefined, { sensitivity: 'accent' }) === 0
+    )
+  }, [deleteConfirmText, person])
+
+  async function onConfirmDelete() {
+    if (!person || !canEdit || !deleteConfirmMatches) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await deletePersonnel(person, profile?.id)
+      navigate('/admin/people', {
+        replace: true,
+        state: { notice: `${displayName} (${person.personnel_code}) was permanently deleted.` },
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed')
+      setShowDeleteModal(false)
+      setDeleteConfirmText('')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <p className="animate-fade-up text-sm font-semibold uppercase tracking-wider text-ink-muted">
@@ -322,11 +354,88 @@ export function AdminPersonnelDetailPage() {
                     Archive
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => {
+                    setDeleteConfirmText('')
+                    setShowDeleteModal(true)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
               </>
             )}
           </div>
         </div>
       </Card>
+
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-personnel-title"
+        >
+          <Card className="w-full max-w-lg space-y-4 p-5">
+            <SectionHeader
+              title="Delete personnel"
+              subtitle="This permanently removes the directory record"
+            />
+            <div id="delete-personnel-title" className="space-y-2 text-sm text-ink">
+              <p>
+                You are about to permanently delete{' '}
+                <span className="font-semibold">{displayName}</span> (
+                <span className="font-mono text-xs">{person.personnel_code}</span>).
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-ink-muted">
+                <li>Contact info, affiliations, skills, compliance, and documents are removed.</li>
+                <li>Any linked Field app account is <span className="font-semibold text-ink">not</span> deleted.</li>
+                <li>Prefer <span className="font-semibold text-ink">Archive</span> if you may need this record later.</li>
+              </ul>
+              <p className="pt-1 font-semibold text-rose">
+                Type the personnel ID <span className="font-mono">{person.personnel_code}</span> to
+                confirm.
+              </p>
+            </div>
+            <label className="block text-sm font-semibold">
+              Personnel ID
+              <input
+                autoFocus
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={person.personnel_code}
+                className={fieldClass}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button
+                type="button"
+                variant="danger"
+                disabled={!deleteConfirmMatches || deleting}
+                onClick={() => void onConfirmDelete()}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleting}
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDeleteConfirmText('')
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <nav className="flex flex-wrap gap-2 border-b border-border pb-3">
         {tabs.map((t) => (

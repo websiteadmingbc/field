@@ -364,6 +364,54 @@ export async function archivePersonnel(
   })
 }
 
+/** Permanently remove a personnel directory record. Does not delete the linked app account. */
+export async function deletePersonnel(
+  person: Pick<
+    Personnel,
+    | 'id'
+    | 'personnel_code'
+    | 'first_name'
+    | 'middle_name'
+    | 'last_name'
+    | 'preferred_name'
+    | 'linked_user_id'
+  >,
+  actorId?: string | null,
+): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+
+  if (actorId && person.linked_user_id && person.linked_user_id === actorId) {
+    throw new Error('You cannot delete your own personnel record.')
+  }
+
+  const display = personnelDisplayName(person)
+
+  await logActivity({
+    personnel_id: person.id,
+    actor_id: actorId ?? null,
+    action: 'profile_deleted',
+    entity_type: 'personnel',
+    entity_id: person.id,
+    metadata: {
+      personnel_code: person.personnel_code,
+      name: display,
+    },
+  })
+
+  // Remove private document files before row cascade
+  const docs = await fetchDocuments(person.id)
+  if (docs.length > 0) {
+    const paths = docs.map((d) => d.storage_path).filter(Boolean)
+    if (paths.length > 0) {
+      await supabase.storage.from('personnel-documents').remove(paths)
+    }
+  }
+
+  const { error } = await supabase.from('personnel').delete().eq('id', person.id)
+  if (error) throw error
+}
+
 export async function linkPersonnelUser(
   personnelId: string,
   userId: string,
