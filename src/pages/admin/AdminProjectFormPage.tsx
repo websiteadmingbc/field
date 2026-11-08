@@ -57,6 +57,7 @@ export function AdminProjectFormPage() {
     email: '',
     is_primary: false,
   })
+  const [editingContactId, setEditingContactId] = useState<string | null>(null)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -183,6 +184,29 @@ export function AdminProjectFormPage() {
     }
   }
 
+  function startEditContact(c: SiteContactRow) {
+    setEditingContactId(c.id)
+    setContactForm({
+      full_name: c.full_name,
+      contact_role: c.contact_role,
+      phone: c.phone,
+      email: c.email ?? '',
+      is_primary: c.is_primary,
+    })
+    setNotice(null)
+  }
+
+  function cancelEditContact() {
+    setEditingContactId(null)
+    setContactForm({
+      full_name: '',
+      contact_role: '',
+      phone: '',
+      email: '',
+      is_primary: false,
+    })
+  }
+
   async function onAddContact(e: FormEvent) {
     e.preventDefault()
     if (!projectId || isNew) return
@@ -190,7 +214,9 @@ export function AdminProjectFormPage() {
     setError(null)
     try {
       if (!contactForm.full_name.trim()) throw new Error('Contact name is required.')
+      const wasEditing = Boolean(editingContactId)
       await upsertSiteContact({
+        id: editingContactId ?? undefined,
         project_id: projectId,
         full_name: contactForm.full_name.trim(),
         contact_role: contactForm.contact_role.trim(),
@@ -198,16 +224,10 @@ export function AdminProjectFormPage() {
         email: contactForm.email.trim() || null,
         is_primary: contactForm.is_primary,
       })
-      setContactForm({
-        full_name: '',
-        contact_role: '',
-        phone: '',
-        email: '',
-        is_primary: false,
-      })
+      cancelEditContact()
       setContacts(await fetchSiteContacts(projectId))
       if (remote) await refreshRemote()
-      setNotice('Site contact saved.')
+      setNotice(wasEditing ? 'Site contact updated.' : 'Site contact saved.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save contact')
     } finally {
@@ -542,14 +562,24 @@ export function AdminProjectFormPage() {
                         {c.email ? ` · ${c.email}` : ''}
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void onDeleteContact(c.id)}
-                    >
-                      Remove
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => startEditContact(c)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void onDeleteContact(c.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -558,7 +588,9 @@ export function AdminProjectFormPage() {
 
           <Card className="p-5">
             <form onSubmit={onAddContact} className="space-y-3">
-              <SectionHeader title="Add site contact" />
+              <SectionHeader
+                title={editingContactId ? 'Edit site contact' : 'Add site contact'}
+              />
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-sm font-semibold">
                   Name
@@ -605,9 +637,16 @@ export function AdminProjectFormPage() {
                 />
                 Primary contact
               </label>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Add contact'}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : editingContactId ? 'Save changes' : 'Add contact'}
+                </Button>
+                {editingContactId && (
+                  <Button type="button" variant="outline" onClick={cancelEditContact}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </form>
           </Card>
         </div>

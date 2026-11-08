@@ -244,6 +244,14 @@ export async function fetchSiteContacts(projectId: string): Promise<SiteContactR
   return (data ?? []) as SiteContactRow[]
 }
 
+export async function fetchSiteContact(id: string): Promise<SiteContactRow | null> {
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { data, error } = await supabase.from('site_contacts').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  return data as SiteContactRow | null
+}
+
 export async function upsertSiteContact(
   contact: Omit<SiteContactRow, 'id' | 'created_at'> & { id?: string },
 ): Promise<void> {
