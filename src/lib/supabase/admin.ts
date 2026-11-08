@@ -296,12 +296,14 @@ export async function inviteUser(input: {
   title: string
   phone: string
   app_role: AppRole
-}): Promise<void> {
+  personnelId?: string
+}): Promise<{ userId?: string }> {
   const supabase = getSupabase()
   if (!supabase) throw new Error('Supabase not configured')
 
+  const { personnelId, ...body } = input
   const { data, error } = await supabase.functions.invoke('invite-user', {
-    body: input,
+    body,
   })
 
   if (error) {
@@ -310,4 +312,16 @@ export async function inviteUser(input: {
   if (data?.error) {
     throw new Error(typeof data.error === 'string' ? data.error : 'Invite failed')
   }
+
+  const userId = typeof data?.id === 'string' ? data.id : undefined
+
+  if (personnelId && userId) {
+    const { error: linkError } = await supabase
+      .from('personnel')
+      .update({ linked_user_id: userId })
+      .eq('id', personnelId)
+    if (linkError) throw linkError
+  }
+
+  return { userId }
 }

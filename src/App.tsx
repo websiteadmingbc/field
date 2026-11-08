@@ -17,7 +17,9 @@ import { PhotosPage } from './pages/PhotosPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { TeamPage } from './pages/TeamPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
-import { AdminPeoplePage } from './pages/admin/AdminPeoplePage'
+import { AdminPersonnelDetailPage } from './pages/admin/AdminPersonnelDetailPage'
+import { AdminPersonnelFormPage } from './pages/admin/AdminPersonnelFormPage'
+import { AdminPersonnelPage } from './pages/admin/AdminPersonnelPage'
 import { AdminProjectFormPage } from './pages/admin/AdminProjectFormPage'
 import { AdminProjectsPage } from './pages/admin/AdminProjectsPage'
 import { AdminRolesPage } from './pages/admin/AdminRolesPage'
@@ -47,7 +49,10 @@ export default function App() {
                   <Route path="admin" element={<RequireAdmin />}>
                     <Route element={<AdminLayout />}>
                       <Route index element={<Navigate to="people" replace />} />
-                      <Route path="people" element={<AdminPeoplePage />} />
+                      <Route path="people" element={<AdminPersonnelPage />} />
+                      <Route path="people/new" element={<AdminPersonnelFormPage />} />
+                      <Route path="people/:personnelId" element={<AdminPersonnelDetailPage />} />
+                      <Route path="people/:personnelId/edit" element={<AdminPersonnelFormPage />} />
                       <Route path="roles" element={<AdminRolesPage />} />
                       <Route path="projects" element={<AdminProjectsPage />} />
                       <Route path="projects/new" element={<AdminProjectFormPage />} />

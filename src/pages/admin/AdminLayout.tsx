@@ -3,7 +3,7 @@ import { Briefcase, Shield, Users } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const tabs = [
-  { to: '/admin/people', label: 'People & invites', icon: Users },
+  { to: '/admin/people', label: 'Personnel', icon: Users },
   { to: '/admin/roles', label: 'Roles & permissions', icon: Shield },
   { to: '/admin/projects', label: 'Projects', icon: Briefcase },
 ]
@@ -18,8 +18,8 @@ export function AdminLayout() {
         </h1>
         <p className="mt-2 max-w-2xl text-ink-muted">
           Your personal <span className="font-semibold text-ink">Dashboard</span> is day-to-day work.
-          This area is where General Manager and Operations Manager run the company — people, roles,
-          and projects. App role controls permissions; job title is display only.
+          This area is where General Manager and Operations Manager run the company — personnel,
+          roles, and projects. Personnel type is independent of app role permissions.
         </p>
       </header>
 

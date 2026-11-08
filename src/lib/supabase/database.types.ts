@@ -1,5 +1,15 @@
 import type { AppRole } from '../../types/auth'
 import type { JobStatus, LogStatus, PhotoCategory } from '../../types'
+import type {
+  AssignmentStatus,
+  CompanyRelationshipStatus,
+  CompanyType,
+  DocumentCategory,
+  PersonnelClassification,
+  PersonnelStatus,
+  PreferredContactMethod,
+  VerificationStatus,
+} from '../../types/personnel'
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
@@ -209,6 +219,330 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['site_contacts']['Insert']>
       }
+      companies: {
+        Row: {
+          id: string
+          name: string
+          company_type: CompanyType
+          business_phone: string
+          business_email: string
+          trade_specialty: string
+          relationship_status: CompanyRelationshipStatus
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          company_type?: CompanyType
+          business_phone?: string
+          business_email?: string
+          trade_specialty?: string
+          relationship_status?: CompanyRelationshipStatus
+          archived_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['companies']['Insert']>
+      }
+      personnel: {
+        Row: {
+          id: string
+          personnel_code: string
+          first_name: string
+          middle_name: string
+          last_name: string
+          preferred_name: string
+          avatar_path: string | null
+          work_email: string
+          mobile_phone: string
+          work_phone: string
+          preferred_contact_method: PreferredContactMethod | null
+          business_address: string
+          city: string
+          state: string
+          zip: string
+          classification: PersonnelClassification
+          job_title: string
+          department: string
+          primary_role: string
+          additional_roles: string[]
+          reports_to: string | null
+          status: PersonnelStatus
+          start_date: string | null
+          end_date: string | null
+          work_arrangement: string
+          primary_work_location: string
+          service_territory: string
+          availability: string
+          linked_user_id: string | null
+          created_at: string
+          updated_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          personnel_code?: string
+          first_name: string
+          middle_name?: string
+          last_name: string
+          preferred_name?: string
+          avatar_path?: string | null
+          work_email?: string
+          mobile_phone?: string
+          work_phone?: string
+          preferred_contact_method?: PreferredContactMethod | null
+          business_address?: string
+          city?: string
+          state?: string
+          zip?: string
+          classification?: PersonnelClassification
+          job_title?: string
+          department?: string
+          primary_role?: string
+          additional_roles?: string[]
+          reports_to?: string | null
+          status?: PersonnelStatus
+          start_date?: string | null
+          end_date?: string | null
+          work_arrangement?: string
+          primary_work_location?: string
+          service_territory?: string
+          availability?: string
+          linked_user_id?: string | null
+          archived_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['personnel']['Insert']>
+      }
+      personnel_company_affiliations: {
+        Row: {
+          id: string
+          personnel_id: string
+          company_id: string
+          is_primary: boolean
+          notes: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id: string
+          company_id: string
+          is_primary?: boolean
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['personnel_company_affiliations']['Insert']>
+      }
+      personnel_sensitive: {
+        Row: {
+          personnel_id: string
+          personal_email: string
+          emergency_contact_name: string
+          emergency_contact_relationship: string
+          emergency_contact_phone: string
+          internal_notes: string
+          updated_at: string
+        }
+        Insert: {
+          personnel_id: string
+          personal_email?: string
+          emergency_contact_name?: string
+          emergency_contact_relationship?: string
+          emergency_contact_phone?: string
+          internal_notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['personnel_sensitive']['Insert']>
+      }
+      personnel_skills: {
+        Row: {
+          id: string
+          personnel_id: string
+          primary_trade: string
+          secondary_trades: string[]
+          specialties: string[]
+          notes: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id: string
+          primary_trade?: string
+          secondary_trades?: string[]
+          specialties?: string[]
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['personnel_skills']['Insert']>
+      }
+      personnel_certifications: {
+        Row: {
+          id: string
+          personnel_id: string
+          name: string
+          issuer: string
+          certification_number: string
+          issue_date: string | null
+          expiration_date: string | null
+          verification_status: VerificationStatus
+          verification_date: string | null
+          notes: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id: string
+          name: string
+          issuer?: string
+          certification_number?: string
+          issue_date?: string | null
+          expiration_date?: string | null
+          verification_status?: VerificationStatus
+          verification_date?: string | null
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['personnel_certifications']['Insert']>
+      }
+      personnel_project_assignments: {
+        Row: {
+          id: string
+          personnel_id: string
+          project_id: string
+          assigned_role: string
+          start_date: string | null
+          end_date: string | null
+          status: AssignmentStatus
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id: string
+          project_id: string
+          assigned_role?: string
+          start_date?: string | null
+          end_date?: string | null
+          status?: AssignmentStatus
+        }
+        Update: Partial<Database['public']['Tables']['personnel_project_assignments']['Insert']>
+      }
+      licenses: {
+        Row: {
+          id: string
+          personnel_id: string | null
+          company_id: string | null
+          license_type: string
+          license_number: string
+          issuing_authority: string
+          license_classification: string
+          issue_date: string | null
+          expiration_date: string | null
+          verification_date: string | null
+          verification_status: VerificationStatus
+          notes: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id?: string | null
+          company_id?: string | null
+          license_type: string
+          license_number?: string
+          issuing_authority?: string
+          license_classification?: string
+          issue_date?: string | null
+          expiration_date?: string | null
+          verification_date?: string | null
+          verification_status?: VerificationStatus
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['licenses']['Insert']>
+      }
+      insurance_policies: {
+        Row: {
+          id: string
+          personnel_id: string | null
+          company_id: string | null
+          insurance_type: string
+          provider: string
+          policy_reference: string
+          coverage_expiration: string | null
+          workers_comp_status: string
+          verification_status: VerificationStatus
+          verification_date: string | null
+          notes: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id?: string | null
+          company_id?: string | null
+          insurance_type: string
+          provider?: string
+          policy_reference?: string
+          coverage_expiration?: string | null
+          workers_comp_status?: string
+          verification_status?: VerificationStatus
+          verification_date?: string | null
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['insurance_policies']['Insert']>
+      }
+      personnel_documents: {
+        Row: {
+          id: string
+          personnel_id: string | null
+          company_id: string | null
+          document_name: string
+          category: DocumentCategory
+          storage_path: string
+          uploaded_by: string | null
+          upload_date: string
+          issue_date: string | null
+          expiration_date: string | null
+          verification_status: VerificationStatus
+          notes: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id?: string | null
+          company_id?: string | null
+          document_name: string
+          category?: DocumentCategory
+          storage_path: string
+          uploaded_by?: string | null
+          upload_date?: string
+          issue_date?: string | null
+          expiration_date?: string | null
+          verification_status?: VerificationStatus
+          notes?: string
+        }
+        Update: Partial<Database['public']['Tables']['personnel_documents']['Insert']>
+      }
+      personnel_activity_log: {
+        Row: {
+          id: string
+          personnel_id: string | null
+          actor_id: string | null
+          action: string
+          entity_type: string
+          entity_id: string | null
+          metadata: Record<string, unknown>
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          personnel_id?: string | null
+          actor_id?: string | null
+          action: string
+          entity_type?: string
+          entity_id?: string | null
+          metadata?: Record<string, unknown>
+        }
+        Update: Partial<Database['public']['Tables']['personnel_activity_log']['Insert']>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -217,6 +551,10 @@ export interface Database {
       job_status: JobStatus
       log_status: LogStatus
       photo_category: PhotoCategory
+      personnel_classification: PersonnelClassification
+      personnel_status: PersonnelStatus
+      verification_status: VerificationStatus
+      document_category: DocumentCategory
     }
   }
 }
