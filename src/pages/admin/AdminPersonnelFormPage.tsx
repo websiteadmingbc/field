@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Building2, Plus } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -50,7 +50,7 @@ export function AdminPersonnelFormPage() {
   const { personnelId } = useParams()
   const isNew = !personnelId || personnelId === 'new'
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, ready } = useAuth()
   const canEdit = canManageUsers(profile?.app_role)
 
   const [form, setForm] = useState<PersonnelInput>(emptyPersonnelInput())
@@ -65,7 +65,16 @@ export function AdminPersonnelFormPage() {
   const [companyForm, setCompanyForm] = useState<CompanyInput>(emptyCompanyInput())
   const [companySaving, setCompanySaving] = useState(false)
 
-  const blocker = useBlocker(dirty && !saving)
+  // Browser refresh/close only — useBlocker needs a data router (we use BrowserRouter)
+  useEffect(() => {
+    if (!dirty || saving) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirty, saving])
 
   const load = useCallback(async () => {
     if (isNew) {
@@ -127,10 +136,11 @@ export function AdminPersonnelFormPage() {
   }, [isNew, load])
 
   useEffect(() => {
+    if (!ready) return
     if (!canEdit) {
       navigate(isNew ? '/admin/people' : `/admin/people/${personnelId}`, { replace: true })
     }
-  }, [canEdit, isNew, navigate, personnelId])
+  }, [ready, canEdit, isNew, navigate, personnelId])
 
   function patchForm(partial: Partial<PersonnelInput>) {
     setForm((f) => ({ ...f, ...partial }))
@@ -218,6 +228,11 @@ export function AdminPersonnelFormPage() {
         <Link
           to={isNew ? '/admin/people' : `/admin/people/${personnelId}`}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:text-ink"
+          onClick={(e) => {
+            if (dirty && !window.confirm('Discard unsaved changes?')) {
+              e.preventDefault()
+            }
+          }}
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -229,18 +244,10 @@ export function AdminPersonnelFormPage() {
         subtitle="Personnel type is independent of app permissions."
       />
 
-      {blocker.state === 'blocked' && (
-        <Card className="space-y-3 border-amber/40 p-4">
-          <p className="text-sm font-semibold text-ink">You have unsaved changes.</p>
-          <div className="flex gap-2">
-            <Button type="button" variant="danger" onClick={() => blocker.proceed()}>
-              Discard
-            </Button>
-            <Button type="button" variant="outline" onClick={() => blocker.reset()}>
-              Keep editing
-            </Button>
-          </div>
-        </Card>
+      {dirty && (
+        <p className="text-xs font-semibold uppercase tracking-wider text-amber">
+          Unsaved changes
+        </p>
       )}
 
       <form onSubmit={onSubmit} className="space-y-6">
@@ -575,7 +582,14 @@ export function AdminPersonnelFormPage() {
           <Button type="submit" disabled={saving}>
             {saving ? 'Saving…' : isNew ? 'Create personnel' : 'Save changes'}
           </Button>
-          <Link to={isNew ? '/admin/people' : `/admin/people/${personnelId}`}>
+          <Link
+            to={isNew ? '/admin/people' : `/admin/people/${personnelId}`}
+            onClick={(e) => {
+              if (dirty && !window.confirm('Discard unsaved changes?')) {
+                e.preventDefault()
+              }
+            }}
+          >
             <Button type="button" variant="outline">
               Cancel
             </Button>
