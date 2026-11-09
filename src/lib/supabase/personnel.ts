@@ -212,55 +212,98 @@ async function setPrimaryAffiliation(
   if (error) throw error
 }
 
+function corePersonnelPayload(fields: Omit<PersonnelInput, 'company_id'>) {
+  return {
+    first_name: fields.first_name.trim(),
+    middle_name: fields.middle_name.trim(),
+    last_name: fields.last_name.trim(),
+    preferred_name: fields.preferred_name.trim(),
+    work_email: fields.work_email.trim(),
+    mobile_phone: fields.mobile_phone.trim(),
+    work_phone: fields.work_phone.trim(),
+    preferred_contact_method: fields.preferred_contact_method,
+    business_address: fields.business_address.trim(),
+    city: fields.city.trim(),
+    state: fields.state.trim(),
+    zip: fields.zip.trim(),
+    classification: fields.classification,
+    job_title: fields.job_title.trim(),
+    department: fields.department.trim(),
+    primary_role: fields.primary_role.trim(),
+    additional_roles: fields.additional_roles,
+    reports_to: fields.reports_to,
+    status: fields.status,
+    start_date: fields.start_date || null,
+    end_date: fields.end_date || null,
+    work_arrangement: fields.work_arrangement.trim(),
+    primary_work_location: fields.primary_work_location.trim(),
+    service_territory: fields.service_territory.trim(),
+    availability: fields.availability.trim(),
+  }
+}
+
+function websitePersonnelPayload(fields: Omit<PersonnelInput, 'company_id'>, opts?: { published?: boolean }) {
+  return {
+    website_category: fields.website_category,
+    website_slug: fields.website_slug.trim() || null,
+    website_sort_order: Number.isFinite(fields.website_sort_order) ? fields.website_sort_order : 0,
+    ...(opts?.published === false ? { website_published: false as const } : {}),
+  }
+}
+
+function isMissingWebsiteColumnError(error: { message?: string; code?: string; details?: string } | null) {
+  const hay = `${error?.message ?? ''} ${error?.details ?? ''} ${error?.code ?? ''}`.toLowerCase()
+  return (
+    hay.includes('website_category') ||
+    hay.includes('website_slug') ||
+    hay.includes('website_published') ||
+    hay.includes('website_sort_order') ||
+    hay.includes('personnel_website')
+  )
+}
+
+/** Best-effort website fields — skipped until migration 20261109000000 is applied. */
+async function trySaveWebsiteFields(
+  personnelId: string,
+  fields: Omit<PersonnelInput, 'company_id'>,
+  opts?: { published?: boolean },
+): Promise<string | null> {
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { error } = await supabase
+    .from('personnel')
+    .update(websitePersonnelPayload(fields, opts))
+    .eq('id', personnelId)
+  if (!error) return null
+  if (isMissingWebsiteColumnError(error)) {
+    return 'Saved personnel, but website directory fields need the latest database migration before they can be stored.'
+  }
+  throw error
+}
+
 export async function createPersonnel(
   input: PersonnelInput,
   sensitive?: SensitiveInput,
   actorId?: string | null,
-): Promise<Personnel> {
+): Promise<Personnel & { websiteWarning?: string | null }> {
   const supabase = getSupabase()
   if (!supabase) throw new Error('Supabase not configured')
 
   const { company_id, ...fields } = input
   const { data, error } = await supabase
     .from('personnel')
-    .insert({
-      first_name: fields.first_name.trim(),
-      middle_name: fields.middle_name.trim(),
-      last_name: fields.last_name.trim(),
-      preferred_name: fields.preferred_name.trim(),
-      work_email: fields.work_email.trim(),
-      mobile_phone: fields.mobile_phone.trim(),
-      work_phone: fields.work_phone.trim(),
-      preferred_contact_method: fields.preferred_contact_method,
-      business_address: fields.business_address.trim(),
-      city: fields.city.trim(),
-      state: fields.state.trim(),
-      zip: fields.zip.trim(),
-      classification: fields.classification,
-      job_title: fields.job_title.trim(),
-      department: fields.department.trim(),
-      primary_role: fields.primary_role.trim(),
-      additional_roles: fields.additional_roles,
-      reports_to: fields.reports_to,
-      status: fields.status,
-      start_date: fields.start_date || null,
-      end_date: fields.end_date || null,
-      work_arrangement: fields.work_arrangement.trim(),
-      primary_work_location: fields.primary_work_location.trim(),
-      service_territory: fields.service_territory.trim(),
-      availability: fields.availability.trim(),
-      website_category: fields.website_category,
-      website_slug: fields.website_slug.trim() || null,
-      website_sort_order: Number.isFinite(fields.website_sort_order)
-        ? fields.website_sort_order
-        : 0,
-      website_published: false,
-    })
+    .insert(corePersonnelPayload(fields))
     .select('*')
     .single()
 
   if (error) throw error
-  const person = data as Personnel
+  let person = data as Personnel
+
+  const websiteWarning = await trySaveWebsiteFields(person.id, fields, { published: false })
+  if (!websiteWarning) {
+    const { data: refreshed } = await supabase.from('personnel').select('*').eq('id', person.id).single()
+    if (refreshed) person = refreshed as Personnel
+  }
 
   await setPrimaryAffiliation(person.id, company_id)
 
@@ -276,7 +319,7 @@ export async function createPersonnel(
     entity_id: person.id,
   })
 
-  return person
+  return Object.assign(person, { websiteWarning })
 }
 
 export async function updatePersonnel(
@@ -284,7 +327,7 @@ export async function updatePersonnel(
   input: PersonnelInput,
   sensitive?: SensitiveInput,
   actorId?: string | null,
-): Promise<Personnel> {
+): Promise<Personnel & { websiteWarning?: string | null }> {
   const supabase = getSupabase()
   if (!supabase) throw new Error('Supabase not configured')
 
@@ -292,36 +335,7 @@ export async function updatePersonnel(
   const { data, error } = await supabase
     .from('personnel')
     .update({
-      first_name: fields.first_name.trim(),
-      middle_name: fields.middle_name.trim(),
-      last_name: fields.last_name.trim(),
-      preferred_name: fields.preferred_name.trim(),
-      work_email: fields.work_email.trim(),
-      mobile_phone: fields.mobile_phone.trim(),
-      work_phone: fields.work_phone.trim(),
-      preferred_contact_method: fields.preferred_contact_method,
-      business_address: fields.business_address.trim(),
-      city: fields.city.trim(),
-      state: fields.state.trim(),
-      zip: fields.zip.trim(),
-      classification: fields.classification,
-      job_title: fields.job_title.trim(),
-      department: fields.department.trim(),
-      primary_role: fields.primary_role.trim(),
-      additional_roles: fields.additional_roles,
-      reports_to: fields.reports_to,
-      status: fields.status,
-      start_date: fields.start_date || null,
-      end_date: fields.end_date || null,
-      work_arrangement: fields.work_arrangement.trim(),
-      primary_work_location: fields.primary_work_location.trim(),
-      service_territory: fields.service_territory.trim(),
-      availability: fields.availability.trim(),
-      website_category: fields.website_category,
-      website_slug: fields.website_slug.trim() || null,
-      website_sort_order: Number.isFinite(fields.website_sort_order)
-        ? fields.website_sort_order
-        : 0,
+      ...corePersonnelPayload(fields),
       archived_at: fields.status === 'archived' ? new Date().toISOString() : null,
     })
     .eq('id', id)
@@ -329,7 +343,13 @@ export async function updatePersonnel(
     .single()
 
   if (error) throw error
-  const person = data as Personnel
+  let person = data as Personnel
+
+  const websiteWarning = await trySaveWebsiteFields(id, fields)
+  if (!websiteWarning) {
+    const { data: refreshed } = await supabase.from('personnel').select('*').eq('id', id).single()
+    if (refreshed) person = refreshed as Personnel
+  }
 
   await setPrimaryAffiliation(id, company_id)
 
@@ -345,7 +365,7 @@ export async function updatePersonnel(
     entity_id: id,
   })
 
-  return person
+  return Object.assign(person, { websiteWarning })
 }
 
 export async function upsertSensitive(

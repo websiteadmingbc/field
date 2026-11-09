@@ -103,6 +103,63 @@ export const WEBSITE_PERSONNEL_CATEGORIES: WebsitePersonnelCategory[] = [
   'office',
 ]
 
+/** Display-only job titles — combobox (pick standard or type custom). */
+export const JOB_TITLE_OPTIONS = [
+  'Laborer',
+  'Carpenter',
+  'Electrician',
+  'Plumber',
+  'Foreman',
+  'Superintendent',
+  'Project Manager',
+  'Estimator',
+  'Equipment Operator',
+  'Apprentice',
+  'Office/Admin',
+] as const
+
+/**
+ * Primary role drives assignment / scheduling / filters — strict dropdown values.
+ * Stored as these labels on personnel.primary_role.
+ */
+export const PRIMARY_ROLE_OPTIONS = [
+  'Laborer',
+  'Tradesperson',
+  'Carpenter',
+  'Electrician',
+  'Plumber',
+  'Equipment Operator',
+  'Apprentice',
+  'Foreman / Crew Lead',
+  'Superintendent / Site Supervisor',
+  'Project Manager',
+  'Project Coordinator',
+  'Estimator',
+  'Safety Officer',
+  'Operations Manager',
+  'Office / Admin',
+  'General Manager',
+] as const
+
+/** Additional roles chip multi-select options (can also add custom via the control). */
+export const ADDITIONAL_ROLE_OPTIONS = Array.from(
+  new Set([
+    ...PRIMARY_ROLE_OPTIONS,
+    ...JOB_TITLE_OPTIONS,
+    'Bookkeeper',
+    'Sales Representative',
+    'Subcontractor Contact',
+  ]),
+)
+
+export const WORK_ARRANGEMENT_OPTIONS = [
+  'Full-time',
+  'Part-time',
+  'Contract',
+  'Seasonal',
+  'Temporary',
+] as const
+
 export const VERIFICATION_STATUSES: VerificationStatus[] = [
   'verified',
   'pending_verification',

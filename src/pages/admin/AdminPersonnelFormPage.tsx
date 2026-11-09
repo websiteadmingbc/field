@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Building2, Plus } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
+import { ChipMultiSelect } from '../../components/ui/ChipMultiSelect'
+import { Combobox } from '../../components/ui/Combobox'
 import { useAuth } from '../../context/AuthContext'
 import {
   createCompany,
@@ -30,19 +32,23 @@ import type {
   WebsitePersonnelCategory,
 } from '../../types/personnel'
 import {
+  ADDITIONAL_ROLE_OPTIONS,
   CLASSIFICATION_LABELS,
   COMPANY_TYPE_LABELS,
   COMPANY_TYPES,
   CONTACT_METHOD_LABELS,
   emptyPersonnelInput,
   emptySensitiveInput,
+  JOB_TITLE_OPTIONS,
   PERSONNEL_CLASSIFICATIONS,
   PERSONNEL_STATUSES,
   PREFERRED_CONTACT_METHODS,
+  PRIMARY_ROLE_OPTIONS,
   personnelToInput,
   STATUS_LABELS,
   WEBSITE_CATEGORY_LABELS,
   WEBSITE_PERSONNEL_CATEGORIES,
+  WORK_ARRANGEMENT_OPTIONS,
 } from '../../types/personnel'
 
 const fieldClass =
@@ -185,8 +191,13 @@ export function AdminPersonnelFormPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     if (!canEdit) return
-    if (!form.first_name.trim() || !form.last_name.trim() || !form.job_title.trim()) {
-      setError('First name, last name, and job title are required.')
+    if (
+      !form.first_name.trim() ||
+      !form.last_name.trim() ||
+      !form.job_title.trim() ||
+      !form.primary_role.trim()
+    ) {
+      setError('First name, last name, job title, and primary role are required.')
       return
     }
     setSaving(true)
@@ -202,16 +213,20 @@ export function AdminPersonnelFormPage() {
           replace: true,
           state: {
             notice:
+              created.websiteWarning ??
               'Personnel saved. Confirm Publish on their profile before they appear on greatbrittongc.com.',
           },
         })
       } else {
-        await updatePersonnel(personnelId!, form, sensitive, profile?.id)
+        const updated = await updatePersonnel(personnelId!, form, sensitive, profile?.id)
         if (pendingAvatar) {
           await uploadPersonnelAvatar(personnelId!, pendingAvatar, profile?.id)
         }
         setDirty(false)
-        navigate(`/admin/people/${personnelId}`, { replace: true })
+        navigate(`/admin/people/${personnelId}`, {
+          replace: true,
+          state: updated.websiteWarning ? { notice: updated.websiteWarning } : {},
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -458,12 +473,16 @@ export function AdminPersonnelFormPage() {
               </select>
             </Field>
             <Field label="Job title" required>
-              <input
+              <Combobox
                 required
                 value={form.job_title}
-                onChange={(e) => patchForm({ job_title: e.target.value })}
-                className={fieldClass}
+                onChange={(job_title) => patchForm({ job_title })}
+                options={[...JOB_TITLE_OPTIONS]}
+                placeholder="Search titles or type a custom one"
               />
+              <p className="mt-1 text-xs text-ink-subtle">
+                Display label only — pick a standard title when possible so filters stay clean.
+              </p>
             </Field>
             <Field label="Status">
               <select
@@ -489,25 +508,34 @@ export function AdminPersonnelFormPage() {
                 />
               </Field>
             )}
-            <Field label="Primary role">
-              <input
+            <Field label="Primary role" required>
+              <select
+                required
                 value={form.primary_role}
                 onChange={(e) => patchForm({ primary_role: e.target.value })}
                 className={fieldClass}
-              />
+              >
+                <option value="">Select primary role…</option>
+                {PRIMARY_ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+                {form.primary_role &&
+                  !(PRIMARY_ROLE_OPTIONS as readonly string[]).includes(form.primary_role) && (
+                    <option value={form.primary_role}>{form.primary_role} (current)</option>
+                  )}
+              </select>
+              <p className="mt-1 text-xs text-ink-subtle">
+                Used for crew assignment, scheduling, and filters — not free text.
+              </p>
             </Field>
-            <Field label="Additional roles (comma-separated)">
-              <input
-                value={form.additional_roles.join(', ')}
-                onChange={(e) =>
-                  patchForm({
-                    additional_roles: e.target.value
-                      .split(',')
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  })
-                }
-                className={fieldClass}
+            <Field label="Additional roles" className="sm:col-span-2 lg:col-span-3">
+              <ChipMultiSelect
+                value={form.additional_roles}
+                onChange={(additional_roles) => patchForm({ additional_roles })}
+                options={ADDITIONAL_ROLE_OPTIONS}
+                placeholder="Add secondary roles…"
               />
             </Field>
             <Field label="Reports to">
@@ -541,12 +569,24 @@ export function AdminPersonnelFormPage() {
               />
             </Field>
             <Field label="Work arrangement">
-              <input
+              <select
                 value={form.work_arrangement}
                 onChange={(e) => patchForm({ work_arrangement: e.target.value })}
-                placeholder="Full-time, contract…"
                 className={fieldClass}
-              />
+              >
+                <option value="">—</option>
+                {WORK_ARRANGEMENT_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+                {form.work_arrangement &&
+                  !(WORK_ARRANGEMENT_OPTIONS as readonly string[]).includes(form.work_arrangement) && (
+                    <option value={form.work_arrangement}>
+                      {form.work_arrangement} (current)
+                    </option>
+                  )}
+              </select>
             </Field>
             <Field label="Primary work location">
               <input
