@@ -34,6 +34,9 @@ export type PreferredContactMethod =
   | 'personal_email'
   | 'text'
 
+/** Public website crew filter — matches greatbrittongc.com data-dept values */
+export type WebsitePersonnelCategory = 'leadership' | 'field' | 'office'
+
 export type VerificationStatus =
   | 'verified'
   | 'pending_verification'
@@ -94,6 +97,12 @@ export const PREFERRED_CONTACT_METHODS: PreferredContactMethod[] = [
   'text',
 ]
 
+export const WEBSITE_PERSONNEL_CATEGORIES: WebsitePersonnelCategory[] = [
+  'leadership',
+  'field',
+  'office',
+]
+
 export const VERIFICATION_STATUSES: VerificationStatus[] = [
   'verified',
   'pending_verification',
@@ -152,6 +161,12 @@ export const CONTACT_METHOD_LABELS: Record<PreferredContactMethod, string> = {
   work_email: 'Work email',
   personal_email: 'Personal email',
   text: 'Text',
+}
+
+export const WEBSITE_CATEGORY_LABELS: Record<WebsitePersonnelCategory, string> = {
+  leadership: 'Leadership',
+  field: 'Field Crew',
+  office: 'Office',
 }
 
 export const VERIFICATION_LABELS: Record<VerificationStatus, string> = {
@@ -219,6 +234,12 @@ export interface Personnel {
   service_territory: string
   availability: string
   linked_user_id: string | null
+  website_category: WebsitePersonnelCategory | null
+  website_published: boolean
+  website_published_at: string | null
+  website_published_by: string | null
+  website_slug: string | null
+  website_sort_order: number
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -408,6 +429,9 @@ export type PersonnelInput = {
   service_territory: string
   availability: string
   company_id: string | null
+  website_category: WebsitePersonnelCategory | null
+  website_slug: string
+  website_sort_order: number
 }
 
 export type SensitiveInput = {
@@ -446,6 +470,9 @@ export function emptyPersonnelInput(): PersonnelInput {
     service_territory: '',
     availability: '',
     company_id: null,
+    website_category: null,
+    website_slug: '',
+    website_sort_order: 0,
   }
 }
 
@@ -490,5 +517,8 @@ export function personnelToInput(
     service_territory: p.service_territory,
     availability: p.availability,
     company_id: companyId,
+    website_category: p.website_category,
+    website_slug: p.website_slug ?? '',
+    website_sort_order: p.website_sort_order ?? 0,
   }
 }

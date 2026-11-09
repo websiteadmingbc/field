@@ -16,6 +16,8 @@ import {
   PERSONNEL_CLASSIFICATIONS,
   PERSONNEL_STATUSES,
   STATUS_LABELS,
+  WEBSITE_CATEGORY_LABELS,
+  WEBSITE_PERSONNEL_CATEGORIES,
   statusToneClass,
 } from '../../types/personnel'
 
@@ -35,6 +37,8 @@ export function AdminPersonnelPage() {
   const [classification, setClassification] = useState('')
   const [status, setStatus] = useState('')
   const [companyId, setCompanyId] = useState('')
+  const [websiteCategory, setWebsiteCategory] = useState('')
+  const [websitePublished, setWebsitePublished] = useState<'' | 'yes' | 'no'>('')
   const [sort, setSort] = useState<'name' | 'start_date' | 'status'>('name')
 
   const load = useCallback(async () => {
@@ -47,6 +51,8 @@ export function AdminPersonnelPage() {
           classification: classification || undefined,
           status: status || undefined,
           companyId: companyId || undefined,
+          websiteCategory: websiteCategory || undefined,
+          websitePublished,
           sort,
           includeArchived: status === 'archived',
         }),
@@ -59,7 +65,7 @@ export function AdminPersonnelPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, classification, status, companyId, sort])
+  }, [search, classification, status, companyId, websiteCategory, websitePublished, sort])
 
   useEffect(() => {
     void load()
@@ -97,7 +103,7 @@ export function AdminPersonnelPage() {
           onChange={setSearch}
           placeholder="Search name, company, title, ID, email, phone…"
         />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
             Personnel type
             <select
@@ -141,6 +147,33 @@ export function AdminPersonnelPage() {
                   {c.name}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+            Website category
+            <select
+              value={websiteCategory}
+              onChange={(e) => setWebsiteCategory(e.target.value)}
+              className={cn(fieldClass, 'mt-1.5')}
+            >
+              <option value="">All categories</option>
+              {WEBSITE_PERSONNEL_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {WEBSITE_CATEGORY_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
+            Website
+            <select
+              value={websitePublished}
+              onChange={(e) => setWebsitePublished(e.target.value as '' | 'yes' | 'no')}
+              className={cn(fieldClass, 'mt-1.5')}
+            >
+              <option value="">Any</option>
+              <option value="yes">Published</option>
+              <option value="no">Not published</option>
             </select>
           </label>
           <label className="text-xs font-semibold uppercase tracking-wider text-ink-subtle">
@@ -197,6 +230,7 @@ export function AdminPersonnelPage() {
                     <th className="px-3 py-3">ID</th>
                     <th className="px-3 py-3">Job title</th>
                     <th className="px-3 py-3">Type</th>
+                    <th className="px-3 py-3">Website</th>
                     <th className="px-3 py-3">Company</th>
                     <th className="px-3 py-3">Phone</th>
                     <th className="px-3 py-3">Email</th>
@@ -224,6 +258,12 @@ export function AdminPersonnelPage() {
                       <td className="px-3 py-3 text-ink-muted">{p.job_title || '—'}</td>
                       <td className="px-3 py-3 text-ink-muted">
                         {CLASSIFICATION_LABELS[p.classification]}
+                      </td>
+                      <td className="px-3 py-3">
+                        <WebsitePill
+                          category={p.website_category}
+                          published={p.website_published}
+                        />
                       </td>
                       <td className="px-3 py-3 text-ink-muted">
                         {p.primary_company?.name ?? '—'}
@@ -277,6 +317,10 @@ export function AdminPersonnelPage() {
                             {p.display_name}
                           </Link>
                           <StatusPill status={p.status} />
+                          <WebsitePill
+                            category={p.website_category}
+                            published={p.website_published}
+                          />
                         </div>
                         <p className="mt-0.5 font-mono text-xs text-ink-muted">{p.personnel_code}</p>
                         <p className="mt-1 text-sm text-ink-muted">
@@ -333,6 +377,29 @@ function StatusPill({ status }: { status: PersonnelListItem['status'] }) {
       )}
     >
       {STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+function WebsitePill({
+  category,
+  published,
+}: {
+  category: PersonnelListItem['website_category']
+  published: boolean
+}) {
+  if (!category) {
+    return <span className="text-xs text-ink-subtle">—</span>
+  }
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em]',
+        published ? 'bg-emerald-soft text-emerald' : 'bg-amber-soft text-amber',
+      )}
+    >
+      {published ? 'Live · ' : 'Draft · '}
+      {WEBSITE_CATEGORY_LABELS[category]}
     </span>
   )
 }

@@ -28,6 +28,8 @@ export type PersonnelFilters = {
   status?: string
   companyId?: string
   department?: string
+  websiteCategory?: string
+  websitePublished?: 'yes' | 'no' | ''
   sort?: 'name' | 'start_date' | 'status'
   sortDir?: 'asc' | 'desc'
   includeArchived?: boolean
@@ -84,6 +86,16 @@ export async function fetchPersonnelList(filters: PersonnelFilters = {}): Promis
 
   if (filters.department?.trim()) {
     query = query.ilike('department', `%${filters.department.trim()}%`)
+  }
+
+  if (filters.websiteCategory) {
+    query = query.eq('website_category', filters.websiteCategory)
+  }
+
+  if (filters.websitePublished === 'yes') {
+    query = query.eq('website_published', true)
+  } else if (filters.websitePublished === 'no') {
+    query = query.eq('website_published', false)
   }
 
   const sort = filters.sort ?? 'name'
@@ -237,6 +249,12 @@ export async function createPersonnel(
       primary_work_location: fields.primary_work_location.trim(),
       service_territory: fields.service_territory.trim(),
       availability: fields.availability.trim(),
+      website_category: fields.website_category,
+      website_slug: fields.website_slug.trim() || null,
+      website_sort_order: Number.isFinite(fields.website_sort_order)
+        ? fields.website_sort_order
+        : 0,
+      website_published: false,
     })
     .select('*')
     .single()
@@ -299,6 +317,11 @@ export async function updatePersonnel(
       primary_work_location: fields.primary_work_location.trim(),
       service_territory: fields.service_territory.trim(),
       availability: fields.availability.trim(),
+      website_category: fields.website_category,
+      website_slug: fields.website_slug.trim() || null,
+      website_sort_order: Number.isFinite(fields.website_sort_order)
+        ? fields.website_sort_order
+        : 0,
       archived_at: fields.status === 'archived' ? new Date().toISOString() : null,
     })
     .eq('id', id)
@@ -1071,4 +1094,106 @@ export function isExpired(dateStr: string | null | undefined): boolean {
   const d = new Date(dateStr)
   if (Number.isNaN(d.getTime())) return false
   return d < new Date()
+}
+
+const AVATAR_BUCKET = 'personnel-avatars'
+
+export function personnelAvatarPublicUrl(avatarPath: string | null | undefined): string | null {
+  if (!avatarPath) return null
+  if (/^https?:\/\//i.test(avatarPath)) return avatarPath
+  const supabase = getSupabase()
+  if (!supabase) return null
+  const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(avatarPath)
+  return data.publicUrl || null
+}
+
+export async function uploadPersonnelAvatar(
+  personnelId: string,
+  file: File,
+  actorId?: string | null,
+): Promise<string> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^\w]+/g, '') || 'jpg'
+  const storagePath = `${personnelId}/avatar-${Date.now()}.${ext}`
+
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(storagePath, file, { upsert: true, contentType: file.type || undefined })
+  if (uploadError) throw uploadError
+
+  const { data, error } = await supabase
+    .from('personnel')
+    .update({ avatar_path: storagePath })
+    .eq('id', personnelId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await logActivity({
+    personnel_id: personnelId,
+    actor_id: actorId ?? null,
+    action: 'avatar_uploaded',
+    entity_type: 'personnel',
+    entity_id: personnelId,
+    metadata: { path: storagePath },
+  })
+
+  return (data as Personnel).avatar_path ?? storagePath
+}
+
+export async function setPersonnelWebsitePublished(
+  personnelId: string,
+  published: boolean,
+  actorId: string | null,
+): Promise<Personnel> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+
+  const { data: current, error: loadError } = await supabase
+    .from('personnel')
+    .select('*')
+    .eq('id', personnelId)
+    .single()
+  if (loadError) throw loadError
+  const person = current as Personnel
+
+  if (published) {
+    if (!person.website_category) {
+      throw new Error('Set a website category (Leadership, Field Crew, or Office) before publishing.')
+    }
+    if (!person.avatar_path) {
+      throw new Error('Add a headshot photo before publishing to the website.')
+    }
+    if (!person.job_title.trim()) {
+      throw new Error('Job title is required before publishing.')
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('personnel')
+    .update({
+      website_published: published,
+      website_published_at: published ? new Date().toISOString() : null,
+      website_published_by: published ? actorId : null,
+    })
+    .eq('id', personnelId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await logActivity({
+    personnel_id: personnelId,
+    actor_id: actorId,
+    action: published ? 'website_published' : 'website_unpublished',
+    entity_type: 'personnel',
+    entity_id: personnelId,
+    metadata: {
+      website_category: person.website_category,
+      website_slug: person.website_slug,
+    },
+  })
+
+  return data as Personnel
 }

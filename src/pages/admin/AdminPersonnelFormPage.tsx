@@ -16,7 +16,9 @@ import {
   fetchPersonnelAffiliations,
   fetchPersonnelList,
   fetchPersonnelSensitive,
+  personnelAvatarPublicUrl,
   updatePersonnel,
+  uploadPersonnelAvatar,
 } from '../../lib/supabase/personnel'
 import { canManageUsers } from '../../types/auth'
 import type {
@@ -25,6 +27,7 @@ import type {
   PersonnelInput,
   PersonnelListItem,
   SensitiveInput,
+  WebsitePersonnelCategory,
 } from '../../types/personnel'
 import {
   CLASSIFICATION_LABELS,
@@ -38,6 +41,8 @@ import {
   PREFERRED_CONTACT_METHODS,
   personnelToInput,
   STATUS_LABELS,
+  WEBSITE_CATEGORY_LABELS,
+  WEBSITE_PERSONNEL_CATEGORIES,
 } from '../../types/personnel'
 
 const fieldClass =
@@ -64,6 +69,9 @@ export function AdminPersonnelFormPage() {
   const [showCompanyModal, setShowCompanyModal] = useState(false)
   const [companyForm, setCompanyForm] = useState<CompanyInput>(emptyCompanyInput())
   const [companySaving, setCompanySaving] = useState(false)
+  const [avatarPath, setAvatarPath] = useState<string | null>(null)
+  const [pendingAvatar, setPendingAvatar] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
 
   // Browser refresh/close only — useBlocker needs a data router (we use BrowserRouter)
   useEffect(() => {
@@ -97,6 +105,9 @@ export function AdminPersonnelFormPage() {
       }
       const primary = affs.find((a) => a.is_primary) ?? affs[0]
       setForm(personnelToInput(person, primary?.company_id ?? null))
+      setAvatarPath(person.avatar_path)
+      setPendingAvatar(null)
+      setAvatarPreview(personnelAvatarPublicUrl(person.avatar_path))
       if (sens) {
         setSensitive({
           personal_email: sens.personal_email,
@@ -183,10 +194,22 @@ export function AdminPersonnelFormPage() {
     try {
       if (isNew) {
         const created = await createPersonnel(form, sensitive, profile?.id)
+        if (pendingAvatar) {
+          await uploadPersonnelAvatar(created.id, pendingAvatar, profile?.id)
+        }
         setDirty(false)
-        navigate(`/admin/people/${created.id}`, { replace: true })
+        navigate(`/admin/people/${created.id}`, {
+          replace: true,
+          state: {
+            notice:
+              'Personnel saved. Confirm Publish on their profile before they appear on greatbrittongc.com.',
+          },
+        })
       } else {
         await updatePersonnel(personnelId!, form, sensitive, profile?.id)
+        if (pendingAvatar) {
+          await uploadPersonnelAvatar(personnelId!, pendingAvatar, profile?.id)
+        }
         setDirty(false)
         navigate(`/admin/people/${personnelId}`, { replace: true })
       }
@@ -195,6 +218,18 @@ export function AdminPersonnelFormPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  function onAvatarSelected(file: File | null) {
+    if (avatarPreview?.startsWith('blob:')) URL.revokeObjectURL(avatarPreview)
+    if (!file) {
+      setPendingAvatar(null)
+      setAvatarPreview(personnelAvatarPublicUrl(avatarPath))
+      return
+    }
+    setPendingAvatar(file)
+    setAvatarPreview(URL.createObjectURL(file))
+    setDirty(true)
   }
 
   async function onCreateCompany(e: FormEvent) {
@@ -577,6 +612,84 @@ export function AdminPersonnelFormPage() {
               stay on the company or compliance records — not duplicated on every person.
             </p>
           )}
+        </Card>
+
+        <Card className="space-y-4 p-5">
+          <SectionHeader
+            title="Website directory"
+            subtitle="greatbrittongc.com crew cards — not shown until you confirm Publish"
+          />
+          <p className="rounded-md border border-gold-line/30 bg-surface px-3 py-2 text-sm text-ink-muted">
+            Category drives the Leadership / Field Crew / Office filter on the public site. Saving
+            here does <span className="font-semibold text-ink">not</span> publish — open the profile
+            and confirm <span className="font-semibold text-ink">Publish to website</span>.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Website category">
+              <select
+                value={form.website_category ?? ''}
+                onChange={(e) =>
+                  patchForm({
+                    website_category: (e.target.value || null) as WebsitePersonnelCategory | null,
+                  })
+                }
+                className={fieldClass}
+              >
+                <option value="">Not on website</option>
+                {WEBSITE_PERSONNEL_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {WEBSITE_CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Profile slug (optional)">
+              <input
+                value={form.website_slug}
+                onChange={(e) =>
+                  patchForm({
+                    website_slug: e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, ''),
+                  })
+                }
+                placeholder="e.g. paula"
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Sort order">
+              <input
+                type="number"
+                value={form.website_sort_order}
+                onChange={(e) =>
+                  patchForm({ website_sort_order: Number(e.target.value) || 0 })
+                }
+                className={fieldClass}
+              />
+            </Field>
+            <Field label="Headshot" className="sm:col-span-2 lg:col-span-3">
+              <div className="mt-1.5 flex flex-wrap items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-border bg-surface">
+                  {avatarPreview ? (
+                    <img src={avatarPreview} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Building2 className="h-6 w-6 text-ink-subtle" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                    onChange={(e) => onAvatarSelected(e.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-ink-muted file:mr-3 file:rounded-md file:border-0 file:bg-teal-fill file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-on-teal"
+                  />
+                  <p className="text-xs text-ink-subtle">
+                    Required before publishing. JPG/PNG/WebP, max ~5MB.
+                  </p>
+                </div>
+              </div>
+            </Field>
+          </div>
         </Card>
 
         <div className="flex flex-wrap gap-3">

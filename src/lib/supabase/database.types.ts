@@ -275,6 +275,12 @@ export interface Database {
           service_territory: string
           availability: string
           linked_user_id: string | null
+          website_category: 'leadership' | 'field' | 'office' | null
+          website_published: boolean
+          website_published_at: string | null
+          website_published_by: string | null
+          website_slug: string | null
+          website_sort_order: number
           created_at: string
           updated_at: string
           archived_at: string | null
@@ -309,6 +315,12 @@ export interface Database {
           service_territory?: string
           availability?: string
           linked_user_id?: string | null
+          website_category?: 'leadership' | 'field' | 'office' | null
+          website_published?: boolean
+          website_published_at?: string | null
+          website_published_by?: string | null
+          website_slug?: string | null
+          website_sort_order?: number
           archived_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['personnel']['Insert']>

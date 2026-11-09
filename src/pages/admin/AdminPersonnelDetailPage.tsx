@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Download,
@@ -39,6 +39,8 @@ import {
   invitePersonnelToApp,
   isExpired,
   isExpiringSoon,
+  personnelAvatarPublicUrl,
+  setPersonnelWebsitePublished,
   upsertCertification,
   upsertInsurance,
   upsertLicense,
@@ -71,6 +73,7 @@ import {
   DOCUMENT_CATEGORY_LABELS,
   STATUS_LABELS,
   VERIFICATION_LABELS,
+  WEBSITE_CATEGORY_LABELS,
   personnelDisplayName,
   statusToneClass,
 } from '../../types/personnel'
@@ -90,6 +93,7 @@ type TabKey =
 export function AdminPersonnelDetailPage() {
   const { personnelId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { profile } = useAuth()
   const canEdit = canManageUsers(profile?.app_role)
 
@@ -115,6 +119,8 @@ export function AdminPersonnelDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [showPublishModal, setShowPublishModal] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   const load = useCallback(async () => {
     if (!personnelId) return
@@ -184,8 +190,21 @@ export function AdminPersonnelDetailPage() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    const fromNav = (location.state as { notice?: string } | null)?.notice
+    if (fromNav) {
+      setNotice(fromNav)
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.pathname, location.state, navigate])
+
   const displayName = useMemo(
     () => (person ? personnelDisplayName(person) : ''),
+    [person],
+  )
+
+  const avatarUrl = useMemo(
+    () => (person ? personnelAvatarPublicUrl(person.avatar_path) : null),
     [person],
   )
 
@@ -253,6 +272,40 @@ export function AdminPersonnelDetailPage() {
     }
   }
 
+  async function onConfirmPublish() {
+    if (!person || !canEdit) return
+    setPublishing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const updated = await setPersonnelWebsitePublished(person.id, true, profile?.id ?? null)
+      setPerson(updated)
+      setShowPublishModal(false)
+      setNotice('Published to greatbrittongc.com crew directory.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Publish failed')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  async function onUnpublish() {
+    if (!person || !canEdit) return
+    if (!confirm(`Remove ${displayName} from the public website directory?`)) return
+    setPublishing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const updated = await setPersonnelWebsitePublished(person.id, false, profile?.id ?? null)
+      setPerson(updated)
+      setNotice('Removed from the public website directory.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unpublish failed')
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   if (loading) {
     return (
       <p className="animate-fade-up text-sm font-semibold uppercase tracking-wider text-ink-muted">
@@ -306,9 +359,17 @@ export function AdminPersonnelDetailPage() {
       {/* Header */}
       <Card className="p-5">
         <div className="flex flex-wrap items-start gap-4">
-          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-teal-soft text-lg font-bold uppercase text-teal">
-            {initials(displayName)}
-          </span>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt=""
+              className="h-16 w-16 rounded-full object-cover ring-1 ring-gold-line/40"
+            />
+          ) : (
+            <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-teal-soft text-lg font-bold uppercase text-teal">
+              {initials(displayName)}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-2xl font-bold uppercase tracking-[0.04em] text-ink">
@@ -322,6 +383,15 @@ export function AdminPersonnelDetailPage() {
               >
                 {STATUS_LABELS[person.status]}
               </span>
+              {person.website_published ? (
+                <span className="inline-flex rounded-sm bg-emerald-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald">
+                  On website
+                </span>
+              ) : person.website_category ? (
+                <span className="inline-flex rounded-sm bg-amber-soft px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber">
+                  Website draft
+                </span>
+              ) : null}
             </div>
             {person.preferred_name && (
               <p className="text-sm text-ink-muted">Preferred: {person.preferred_name}</p>
@@ -330,6 +400,12 @@ export function AdminPersonnelDetailPage() {
             <p className="mt-2 text-sm text-ink">
               {person.job_title || 'No title'} · {CLASSIFICATION_LABELS[person.classification]}
             </p>
+            {person.website_category && (
+              <p className="text-sm text-ink-muted">
+                Website category: {WEBSITE_CATEGORY_LABELS[person.website_category]}
+                {person.website_slug ? ` · /crew/${person.website_slug}/` : ''}
+              </p>
+            )}
             {company && (
               <p className="text-sm text-ink-muted">
                 {company.name} ({COMPANY_TYPE_LABELS[company.company_type]})
@@ -349,6 +425,25 @@ export function AdminPersonnelDetailPage() {
                     Edit Profile
                   </Button>
                 </Link>
+                {person.website_published ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={publishing}
+                    onClick={() => void onUnpublish()}
+                  >
+                    Unpublish website
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={publishing}
+                    onClick={() => setShowPublishModal(true)}
+                  >
+                    Publish to website
+                  </Button>
+                )}
                 {person.status !== 'archived' && (
                   <Button type="button" variant="outline" onClick={() => void onArchive()}>
                     Archive
@@ -370,6 +465,62 @@ export function AdminPersonnelDetailPage() {
           </div>
         </div>
       </Card>
+
+      {showPublishModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="publish-personnel-title"
+        >
+          <Card className="w-full max-w-lg space-y-4 p-5">
+            <SectionHeader
+              title="Publish to website"
+              subtitle="Confirm before this person appears on greatbrittongc.com"
+            />
+            <div id="publish-personnel-title" className="space-y-2 text-sm text-ink">
+              <p>
+                Publish <span className="font-semibold">{displayName}</span> to the public crew
+                directory?
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-ink-muted">
+                <li>
+                  Category:{' '}
+                  <span className="font-semibold text-ink">
+                    {person.website_category
+                      ? WEBSITE_CATEGORY_LABELS[person.website_category]
+                      : 'Not set — edit profile first'}
+                  </span>
+                </li>
+                <li>
+                  Photo:{' '}
+                  <span className="font-semibold text-ink">
+                    {person.avatar_path ? 'Ready' : 'Missing — required'}
+                  </span>
+                </li>
+                <li>Only name, title, photo, badge ID, and category are shown publicly.</li>
+              </ul>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={publishing}
+                onClick={() => setShowPublishModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={publishing || !person.website_category || !person.avatar_path}
+                onClick={() => void onConfirmPublish()}
+              >
+                {publishing ? 'Publishing…' : 'Confirm publish'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {showDeleteModal && (
         <div
