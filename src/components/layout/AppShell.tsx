@@ -4,6 +4,7 @@ import {
   Briefcase,
   Building2,
   Camera,
+  CircleHelp,
   ClipboardList,
   Home,
   LayoutDashboard,
@@ -48,6 +49,7 @@ export function AppShell() {
       { to: '/customers', label: 'Customers', icon: Building2 },
       { to: '/notifications', label: 'Updates', icon: Bell },
       ...(showAdmin ? [{ to: '/admin/people', label: 'Operations', icon: Settings2 }] : []),
+      { to: '/help', label: 'Help', icon: CircleHelp },
       { to: '/privacy', label: 'Privacy', icon: Shield },
     ]
     if (isOffice && !field.some((i) => i.to === '/')) {

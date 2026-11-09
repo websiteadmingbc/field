@@ -14,6 +14,7 @@ import { JobsPage } from './pages/JobsPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { PhotosPage } from './pages/PhotosPage'
+import { HelpPage } from './pages/HelpPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { TeamPage } from './pages/TeamPage'
@@ -46,6 +47,7 @@ export default function App() {
                   <Route path="team" element={<TeamPage />} />
                   <Route path="customers" element={<CustomersPage />} />
                   <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="help" element={<HelpPage />} />
                   <Route path="privacy" element={<PrivacyPage />} />
 
                   <Route path="admin" element={<RequireAdmin />}>
