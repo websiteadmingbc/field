@@ -104,7 +104,7 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   company_settings: 'Company Settings',
   users_roles: 'Users & Roles',
-  projects: 'Projects',
+  projects: 'Jobs',
   clients: 'Clients',
   estimates_bids: 'Estimates / Bids',
   contracts: 'Contracts',

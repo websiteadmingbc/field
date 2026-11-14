@@ -1,4 +1,4 @@
-export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'on_hold'
+export type JobStatus = 'scheduled' | 'in_progress' | 'completed' | 'on_hold' | 'archived'
 export type JobType =
   | 'Residential Remodeling'
   | 'Kitchen Renovation'

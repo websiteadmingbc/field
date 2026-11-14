@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { Archive, ArrowLeft, Trash2 } from 'lucide-react'
 import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -16,10 +16,11 @@ import {
   fetchProfiles,
   fetchProject,
   fetchSiteContacts,
-  JOB_STATUS_OPTIONS,
+  JOB_ACTIVE_STATUS_OPTIONS,
   JOB_TYPE_OPTIONS,
   projectToInput,
   setProjectAssignments,
+  setProjectStatus,
   updateProject,
   upsertSiteContact,
   type ProjectInput,
@@ -75,7 +76,7 @@ export function AdminProjectFormPage() {
   )
 
   const title = useMemo(
-    () => (isNew ? 'New project' : form.name || 'Edit project'),
+    () => (isNew ? 'New Job' : form.name || 'Edit job'),
     [isNew, form.name],
   )
 
@@ -94,7 +95,7 @@ export function AdminProjectFormPage() {
         fetchSiteContacts(projectId),
         fetchProfiles(),
       ])
-      if (!project) throw new Error('Project not found')
+      if (!project) throw new Error('Job not found')
       setForm(projectToInput(project))
       setAssignedIds(assignments.map((a) => a.user_id))
       setAssignmentRoles(
@@ -103,7 +104,7 @@ export function AdminProjectFormPage() {
       setContacts(siteContacts)
       setProfiles(people.filter((p) => p.active))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load project')
+      setError(e instanceof Error ? e.message : 'Failed to load job')
     } finally {
       setLoading(false)
     }
@@ -155,11 +156,11 @@ export function AdminProjectFormPage() {
         const created = await createProject(payload)
         if (remote) await refreshRemote()
         navigate(`/admin/projects/${created.id}`, { replace: true })
-        setNotice('Project created. Assign crew and site contacts next.')
+        setNotice('Job created. Assign crew and site contacts next.')
       } else if (projectId) {
         await updateProject(projectId, payload)
         if (remote) await refreshRemote()
-        setNotice('Project saved.')
+        setNotice('Job saved.')
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -249,9 +250,43 @@ export function AdminProjectFormPage() {
     }
   }
 
+  async function onArchiveProject() {
+    if (!projectId || isNew) return
+    if (!confirm('Archive this job? It will leave My Jobs lists but stay available in All Jobs when showing archived.'))
+      return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await setProjectStatus(projectId, 'archived')
+      setForm(projectToInput(updated))
+      if (remote) await refreshRemote()
+      setNotice('Job archived.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Archive failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function onUnarchiveProject() {
+    if (!projectId || isNew) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await setProjectStatus(projectId, 'on_hold')
+      setForm(projectToInput(updated))
+      if (remote) await refreshRemote()
+      setNotice('Job restored to On Hold. Update status as needed.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Restore failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function onDeleteProject() {
     if (!projectId || isNew) return
-    if (!confirm('Delete this project and its logs/photos/notices? This cannot be undone.')) return
+    if (!confirm('Delete this job and its logs/photos/notices? This cannot be undone.')) return
     setSaving(true)
     try {
       await deleteProject(projectId)
@@ -276,15 +311,46 @@ export function AdminProjectFormPage() {
             className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-teal hover:underline"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            All projects
+            All Jobs
           </Link>
           <h2 className="mt-2 font-display text-2xl font-semibold text-ink">{title}</h2>
         </div>
         {!isNew && (
-          <Button type="button" variant="danger" size="sm" onClick={() => void onDeleteProject()}>
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {form.status === 'archived' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={saving}
+                onClick={() => void onUnarchiveProject()}
+              >
+                <Archive className="h-4 w-4" />
+                Unarchive
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={saving}
+                onClick={() => void onArchiveProject()}
+              >
+                <Archive className="h-4 w-4" />
+                Archive
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={saving}
+              onClick={() => void onDeleteProject()}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
+          </div>
         )}
       </div>
 
@@ -328,7 +394,7 @@ export function AdminProjectFormPage() {
       {(isNew || tab === 'details') && (
         <form onSubmit={onSaveDetails} className="space-y-4">
           <Card className="space-y-4 p-5">
-            <SectionHeader title="Project details" subtitle="Visible to assigned crew in the field app" />
+            <SectionHeader title="Job details" subtitle="Visible to assigned crew in the field app" />
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-semibold">
                 Job number
@@ -340,7 +406,7 @@ export function AdminProjectFormPage() {
                 />
               </label>
               <label className="text-sm font-semibold">
-                Project name
+                Job name
                 <input
                   required
                   value={form.name}
@@ -373,15 +439,20 @@ export function AdminProjectFormPage() {
               <label className="text-sm font-semibold">
                 Status
                 <select
-                  value={form.status}
+                  value={form.status === 'archived' ? 'archived' : form.status}
                   onChange={(e) => setField('status', e.target.value as ProjectInput['status'])}
                   className={fieldClass}
+                  disabled={form.status === 'archived'}
                 >
-                  {JOB_STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {statusLabel(s)}
-                    </option>
-                  ))}
+                  {form.status === 'archived' ? (
+                    <option value="archived">{statusLabel('archived')}</option>
+                  ) : (
+                    JOB_ACTIVE_STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {statusLabel(s)}
+                      </option>
+                    ))
+                  )}
                 </select>
               </label>
               <label className="text-sm font-semibold">
@@ -469,7 +540,7 @@ export function AdminProjectFormPage() {
           </Card>
 
           <Button type="submit" disabled={saving}>
-            {saving ? 'Saving…' : isNew ? 'Create project' : 'Save project'}
+            {saving ? 'Saving…' : isNew ? 'Create job' : 'Save job'}
           </Button>
         </form>
       )}
@@ -656,7 +727,7 @@ export function AdminProjectFormPage() {
         <div className="space-y-4">
           <Card className="p-5">
             <SectionHeader
-              title="Project photos"
+              title="Job photos"
               subtitle="Same master library as Photos — filtered to this job"
               action={
                 <Link
@@ -678,7 +749,7 @@ export function AdminProjectFormPage() {
             />
           </Card>
           {projectPhotos.length === 0 ? (
-            <p className="text-sm text-ink-muted">No photos linked to this project yet.</p>
+            <p className="text-sm text-ink-muted">No photos linked to this job yet.</p>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {projectPhotos.map((p) => (

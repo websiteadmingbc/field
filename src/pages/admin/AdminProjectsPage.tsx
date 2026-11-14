@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, RefreshCw, Search } from 'lucide-react'
+import { Briefcase, Plus, RefreshCw, Search } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { fetchProjects } from '../../lib/supabase/projects'
 import type { ProjectRow } from '../../lib/supabase/database.types'
-import { formatShortDate } from '../../lib/utils'
-import { Briefcase } from 'lucide-react'
+import { cn, formatShortDate } from '../../lib/utils'
 
 export function AdminProjectsPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([])
   const [query, setQuery] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -19,9 +19,9 @@ export function AdminProjectsPage() {
     setLoading(true)
     setError(null)
     try {
-      setProjects(await fetchProjects())
+      setProjects(await fetchProjects({ includeArchived: true }))
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load projects')
+      setError(e instanceof Error ? e.message : 'Failed to load jobs')
     } finally {
       setLoading(false)
     }
@@ -33,11 +33,15 @@ export function AdminProjectsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return projects
-    return projects.filter((p) =>
-      `${p.job_number} ${p.name} ${p.client} ${p.city} ${p.status}`.toLowerCase().includes(q),
-    )
-  }, [projects, query])
+    return projects.filter((p) => {
+      if (!showArchived && p.status === 'archived') return false
+      if (showArchived && p.status !== 'archived') return false
+      if (!q) return true
+      return `${p.job_number} ${p.name} ${p.client} ${p.city} ${p.status}`
+        .toLowerCase()
+        .includes(q)
+    })
+  }, [projects, query, showArchived])
 
   return (
     <div className="space-y-4 animate-fade-up stagger-2">
@@ -51,7 +55,19 @@ export function AdminProjectsPage() {
             className="h-11 w-full rounded-md border border-border bg-surface-raised pl-10 pr-3 text-ink outline-none focus:border-gold-line"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className={cn(
+              'h-9 rounded-md border px-3 text-xs font-semibold uppercase tracking-wide transition',
+              showArchived
+                ? 'border-gold-line bg-teal-soft text-teal'
+                : 'border-gold-line/40 bg-surface-raised text-ink-muted hover:text-ink',
+            )}
+          >
+            {showArchived ? 'Showing archived' : 'Show archived'}
+          </button>
           <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -59,7 +75,7 @@ export function AdminProjectsPage() {
           <Link to="/admin/projects/new">
             <Button type="button" size="sm">
               <Plus className="h-4 w-4" />
-              New project
+              New Job
             </Button>
           </Link>
         </div>
@@ -76,12 +92,21 @@ export function AdminProjectsPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Briefcase className="h-6 w-6" />}
-          title="No projects"
-          description="Create the first job to assign crew and site contacts."
+          title={showArchived ? 'No archived jobs' : 'No jobs'}
+          description={
+            showArchived
+              ? 'Archived jobs will appear here.'
+              : 'Create the first job to assign crew and site contacts.'
+          }
           action={
-            <Link to="/admin/projects/new" className="text-sm font-semibold text-teal hover:underline">
-              New project
-            </Link>
+            !showArchived ? (
+              <Link
+                to="/admin/projects/new"
+                className="text-sm font-semibold text-teal hover:underline"
+              >
+                New Job
+              </Link>
+            ) : undefined
           }
         />
       ) : (

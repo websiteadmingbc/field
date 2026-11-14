@@ -41,13 +41,13 @@ export function PhotosPage() {
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl font-bold tracking-tight text-ink">Photo library</h1>
         <p className="mt-1 text-ink-muted">
-          Master library for all job photos. Every capture is tagged to a project so it also appears
-          on that job.
+          Master library for all job photos. Every capture is tagged to a job so it also appears on
+          that job.
         </p>
       </header>
 
       <Card className="relative p-5 animate-fade-up stagger-1">
-        <SectionHeader title="Add a photo" subtitle="Tag project + type at capture time" />
+        <SectionHeader title="Add a photo" subtitle="Tag job + type at capture time" />
         <PhotoCapturePanel
           jobId={uploadJobId}
           jobName={uploadJob?.name}
@@ -69,7 +69,7 @@ export function PhotosPage() {
             }
             className="h-10 rounded-xl border border-border bg-surface-raised px-3 text-sm font-semibold"
           >
-            <option value="all">All projects</option>
+            <option value="all">All jobs</option>
             {data.jobs.map((j) => (
               <option key={j.id} value={j.id}>
                 {j.name}
@@ -97,7 +97,7 @@ export function PhotosPage() {
           <EmptyState
             icon={<ImageIcon className="h-6 w-6" />}
             title="No photos here"
-            description="Capture or upload a photo with a project selected to add it to the library."
+            description="Capture or upload a photo with a job selected to add it to the library."
           />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

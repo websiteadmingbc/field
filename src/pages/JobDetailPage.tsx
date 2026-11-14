@@ -215,8 +215,8 @@ export function JobDetailPage() {
                 <MapPin className="h-8 w-8 text-teal" />
                 <p className="text-sm font-semibold text-white">Map preview unavailable</p>
                 <p className="max-w-sm text-xs text-white/60">
-                  This job is missing map coordinates. Use Open in Maps, or edit the project address
-                  in Admin so we can place it on the map.
+                  This job is missing map coordinates. Use Open in Maps, or edit the job address in
+                  Admin so we can place it on the map.
                 </p>
               </div>
             )}
@@ -460,10 +460,10 @@ export function JobDetailPage() {
         </Card>
       </section>
 
-      {/* Photos from master library for this project */}
+      {/* Photos from master library for this job */}
       <section className="space-y-4">
         <SectionHeader
-          title="Project photos"
+          title="Job photos"
           subtitle={`${photos.length} in library for this job`}
           action={
             <Link
@@ -487,8 +487,8 @@ export function JobDetailPage() {
         </Card>
         {photos.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            No photos linked yet. Capture above — they are saved to the master library and this
-            project automatically.
+            No photos linked yet. Capture above — they are saved to the master library and this job
+            automatically.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

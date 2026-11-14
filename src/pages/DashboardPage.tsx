@@ -29,6 +29,7 @@ function statusCounts(projects: ProjectRow[]) {
     in_progress: 0,
     completed: 0,
     on_hold: 0,
+    archived: 0,
   }
   for (const p of projects) counts[p.status] += 1
   return counts
@@ -193,8 +194,8 @@ export function DashboardPage() {
               <div className="mt-4">
                 <EmptyState
                   icon={<Briefcase className="h-6 w-6" />}
-                  title="No projects yet"
-                  description="Add projects and crew assignments in the Supabase Table Editor. They will show up here automatically."
+                  title="No jobs yet"
+                  description="Add jobs and crew assignments in Operations → All Jobs. They will show up here automatically."
                 />
               </div>
             ) : (

@@ -60,7 +60,29 @@ export const JOB_STATUS_OPTIONS: JobStatus[] = [
   'in_progress',
   'completed',
   'on_hold',
+  'archived',
 ]
+
+/** Statuses shown when actively editing a live job (archive is a separate action). */
+export const JOB_ACTIVE_STATUS_OPTIONS: JobStatus[] = [
+  'scheduled',
+  'in_progress',
+  'completed',
+  'on_hold',
+]
+
+export async function setProjectStatus(id: string, status: JobStatus): Promise<ProjectRow> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ status })
+    .eq('id', id)
+    .select('*')
+    .single()
+  if (error) throw error
+  return data as ProjectRow
+}
 
 export const APP_ROLE_OPTIONS: AppRole[] = [
   'admin',

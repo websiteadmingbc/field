@@ -105,6 +105,8 @@ export function statusLabel(status: JobStatus): string {
       return 'Completed'
     case 'on_hold':
       return 'On Hold'
+    case 'archived':
+      return 'Archived'
   }
 }
 
@@ -118,6 +120,8 @@ export function statusTone(status: JobStatus): string {
       return 'bg-emerald-soft text-emerald'
     case 'on_hold':
       return 'bg-amber-soft text-amber'
+    case 'archived':
+      return 'bg-surface-raised text-ink-muted'
   }
 }
 

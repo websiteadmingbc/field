@@ -147,7 +147,7 @@ export function CustomersPage() {
           description={
             query
               ? 'Try another search term.'
-              : 'Add site contacts on a job in Operations → Projects.'
+              : 'Add site contacts on a job in Operations → All Jobs.'
           }
         />
       ) : (

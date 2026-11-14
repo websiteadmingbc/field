@@ -44,7 +44,7 @@ export function AdminRolesPage() {
           <span className="font-semibold text-ink">E</span> edit ·{' '}
           <span className="font-semibold text-ink">D</span> delete ·{' '}
           <span className="font-semibold text-ink">A</span> approve. Scope limits which records apply
-          (company-wide vs assigned projects vs self).
+          (company-wide vs assigned jobs vs self).
         </p>
         <label className="block text-sm font-semibold">
           Role

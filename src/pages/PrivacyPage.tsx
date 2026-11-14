@@ -30,7 +30,7 @@ export function PrivacyPage() {
         <Principle
           icon={<MapPin className="h-5 w-5" />}
           title="Location stays optional"
-          body="Job site addresses are project information. Directions open in your maps app when you choose. Viewing a job never requires sharing your current location."
+          body="Job site addresses are job information. Directions open in your maps app when you choose. Viewing a job never requires sharing your current location."
         />
         <Principle
           icon={<FileText className="h-5 w-5" />}
@@ -57,7 +57,7 @@ export function PrivacyPage() {
       <Card className="p-6 animate-fade-up stagger-2">
         <h2 className="font-display text-lg font-semibold text-ink">Demo controls</h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Reset restores the original sample South Bay projects and clears photos you uploaded in this browser.
+          Reset restores the original sample South Bay jobs and clears photos you uploaded in this browser.
         </p>
         <Button
           className="mt-4"

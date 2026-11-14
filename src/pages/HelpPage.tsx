@@ -72,7 +72,7 @@ const SECTIONS: HelpSection[] = [
     icon: Home,
     body: [
       'Today shows jobs scheduled for today, site notices, and recent activity for your assignments.',
-      'Dashboard (office) summarizes project status across the company and recent notices — day-to-day work, separate from Operations admin.',
+      'Dashboard (office) summarizes job status across the company and recent notices — day-to-day work, separate from Operations admin.',
     ],
     related: [
       { label: 'Today', to: '/' },
@@ -81,11 +81,11 @@ const SECTIONS: HelpSection[] = [
   },
   {
     id: 'jobs',
-    title: 'Jobs',
+    title: 'My Jobs',
     summary: 'Open a job for status, checklist, notes, materials, map, and photos.',
     icon: Briefcase,
     steps: [
-      'Open Jobs (or My Jobs) from the sidebar.',
+      'Open My Jobs from the sidebar (your assigned work).',
       'Tap a job to open details.',
       'Update status when allowed (office roles).',
       'Check off checklist items, add notes, and track materials as work progresses.',
@@ -94,9 +94,10 @@ const SECTIONS: HelpSection[] = [
     ],
     tips: [
       'Crew typically see only jobs they are assigned to.',
+      'Company-wide job setup lives under Operations → All Jobs.',
       'Site contacts (customer / GC / inspector) live on the job and in Customers — not in Team.',
     ],
-    related: [{ label: 'Jobs', to: '/jobs' }],
+    related: [{ label: 'My Jobs', to: '/jobs' }],
   },
   {
     id: 'daily-log',
@@ -119,16 +120,16 @@ const SECTIONS: HelpSection[] = [
   {
     id: 'photos',
     title: 'Photos',
-    summary: 'Capture and organize job photos by project and category.',
+    summary: 'Capture and organize job photos by job and category.',
     icon: Camera,
     steps: [
       'Open Photos, or capture from a job detail page.',
-      'Choose the project and a category (Before, Estimation, Progress, After, Issue).',
+      'Choose the job and a category (Before, Estimation, Progress, After, Issue).',
       'Take or upload the photo and save.',
       'Filter the library by job or category to find shots later.',
     ],
     tips: [
-      'Every photo is tagged to a project so it appears both in the library and on that job.',
+      'Every photo is tagged to a job so it appears both in the library and on that job.',
       'Use Issue for problems that need follow-up visibility.',
     ],
     related: [{ label: 'Photos', to: '/photos' }],
@@ -143,7 +144,7 @@ const SECTIONS: HelpSection[] = [
       'Customers lists homeowners, clients, GCs, and other site contacts tied to jobs — not internal staff.',
     ],
     tips: [
-      'To add or change a customer contact, edit Site contacts on the project in Operations → Projects (when you have access).',
+      'To add or change a customer contact, edit Site contacts on the job in Operations → All Jobs (when you have access).',
       'Adding staff / crew members is done under Operations → Personnel — see “Add crew or staff” below.',
     ],
     related: [
@@ -177,7 +178,7 @@ const SECTIONS: HelpSection[] = [
       'Under Website directory, choose Leadership, Field Crew, or Office if they should appear on greatbrittongc.com, and add a headshot.',
       'Add restricted fields only if you are a manager: personal email, emergency contact, internal notes.',
       'Save. You land on the person’s detail page — they are not on the public site yet.',
-      'Confirm Publish to website on their profile when ready. Optional: Skills, Projects, Compliance, then App access to invite them into the Field app.',
+      'Confirm Publish to website on their profile when ready. Optional: Skills, Jobs, Compliance, then App access to invite them into the Field app.',
     ],
     tips: [
       'Personnel type (classification) is independent of App role and of Website category.',
@@ -203,7 +204,7 @@ const SECTIONS: HelpSection[] = [
       'Confirm they have a work email on the record.',
       'Choose the App role (permissions for what they can see and do).',
       'Send invite & link. They receive an email and can sign in with a one-time code.',
-      'After they sign in, assign them to projects so crew-scoped roles see the right jobs.',
+      'After they sign in, assign them to jobs so crew-scoped roles see the right work.',
     ],
     tips: [
       'Only Owner/Admin and General Manager can invite and change roles.',
@@ -220,40 +221,43 @@ const SECTIONS: HelpSection[] = [
     adminOnly: true,
     body: [
       'Open Operations → Roles & permissions to inspect the matrix for any role.',
-      'Codes: C create · V view · E edit · D delete · A approve. Scope limits data to company-wide, project, assigned jobs, or self.',
+      'Codes: C create · V view · E edit · D delete · A approve. Scope limits data to company-wide, assigned jobs, or self.',
       'Assign the role when inviting or editing App access on a personnel record — not by changing classification alone.',
     ],
     related: [{ label: 'Roles & permissions', to: '/admin/roles' }],
   },
   {
     id: 'projects',
-    title: 'Create & edit projects',
-    summary: 'Set up a job the field team can open and update.',
+    title: 'Create & edit jobs',
+    summary: 'Set up a job the field team can open and update (Operations → All Jobs).',
     icon: Briefcase,
     adminOnly: true,
     steps: [
-      'Open Operations → Projects.',
-      'Create a project and fill details (name, schedule, address, status, etc.).',
+      'Open Operations → All Jobs.',
+      'Create a job and fill details (name, schedule, address, status, etc.).',
       'Save. Details are visible to assigned crew in the field app.',
-      'Continue with Crew assignments, Site contacts, and Photos tabs on that project.',
+      'Continue with Crew assignments, Site contacts, and Photos tabs on that job.',
     ],
     tips: [
-      'After creating a project, assign crew next — otherwise field users may not see it.',
-      'Photos on a project also feed the shared Photos library.',
+      'After creating a job, assign crew next — otherwise field users may not see it.',
+      'Photos on a job also feed the shared Photos library.',
+      'My Jobs in the sidebar is your assigned list; All Jobs is company-wide management.',
+      'Use Archive on a job to hide it from field lists without deleting. Toggle Show archived on All Jobs to find it again, or Unarchive from the job form.',
+      'Delete permanently removes the job and related logs/photos/notices — prefer Archive when unsure.',
     ],
     related: [
-      { label: 'Projects', to: '/admin/projects' },
-      { label: 'New project', to: '/admin/projects/new' },
+      { label: 'All Jobs', to: '/admin/projects' },
+      { label: 'New Job', to: '/admin/projects/new' },
     ],
   },
   {
     id: 'crew-assignments',
-    title: 'Assign crew to a project',
+    title: 'Assign crew to a job',
     summary: 'Control who can see and work a job.',
     icon: Users,
     adminOnly: true,
     steps: [
-      'Open the project in Operations → Projects.',
+      'Open the job in Operations → All Jobs.',
       'Open the Crew assignments tab.',
       'Check the people who should have access.',
       'Set each person’s assignment role on that job if needed.',
@@ -261,18 +265,18 @@ const SECTIONS: HelpSection[] = [
     ],
     tips: [
       'People must exist as app users (invited / linked) to appear for assignment in most live setups.',
-      'You can also manage project links from a personnel record’s Projects tab.',
+      'You can also manage job links from a personnel record’s Jobs tab.',
     ],
-    related: [{ label: 'Projects', to: '/admin/projects' }],
+    related: [{ label: 'All Jobs', to: '/admin/projects' }],
   },
   {
     id: 'site-contacts',
     title: 'Site contacts (customers)',
-    summary: 'Homeowners, GCs, inspectors — per project, shown under Customers.',
+    summary: 'Homeowners, GCs, inspectors — per job, shown under Customers.',
     icon: Building2,
     adminOnly: true,
     steps: [
-      'Open the project → Site contacts tab.',
+      'Open the job → Site contacts tab.',
       'Add contact name, role, phone, email, and notes as needed.',
       'Save. Contacts appear on the job for the crew and in the Customers directory.',
     ],
@@ -281,19 +285,19 @@ const SECTIONS: HelpSection[] = [
       'Editing a customer from Customers updates that job’s site contact.',
     ],
     related: [
-      { label: 'Projects', to: '/admin/projects' },
+      { label: 'All Jobs', to: '/admin/projects' },
       { label: 'Customers', to: '/customers' },
     ],
   },
   {
     id: 'operations',
     title: 'Operations overview',
-    summary: 'Company admin: personnel, roles, and projects.',
+    summary: 'Company admin: personnel, roles, and jobs.',
     icon: Settings2,
     adminOnly: true,
     body: [
-      'Operations is separate from your personal Dashboard. Use it to run the company directory, permission baseline, and project setup.',
-      'Tabs: Personnel · Roles & permissions · Projects.',
+      'Operations is separate from your personal Dashboard. Use it to run the company directory, permission baseline, and job setup.',
+      'Tabs: Personnel · Roles & permissions · All Jobs.',
     ],
     related: [{ label: 'Operations', to: '/admin/people' }],
   },
@@ -304,7 +308,7 @@ const SECTIONS: HelpSection[] = [
     icon: Shield,
     body: [
       'Britton Field is built for contractors — not to monitor them. There is no continuous GPS tracking, geofencing, or hidden usage monitoring.',
-      'Daily logs document the job. Job addresses are project info; directions open in your maps app when you choose.',
+      'Daily logs document the job. Job addresses are site info; directions open in your maps app when you choose.',
     ],
     related: [{ label: 'Privacy', to: '/privacy' }],
   },

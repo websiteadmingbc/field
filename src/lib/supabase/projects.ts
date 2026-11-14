@@ -56,13 +56,17 @@ export function projectToJob(
   }
 }
 
-export async function fetchProjects(): Promise<ProjectRow[]> {
+export async function fetchProjects(opts?: { includeArchived?: boolean }): Promise<ProjectRow[]> {
   const supabase = getSupabase()
   if (!supabase) return []
-  const { data, error } = await supabase
+  let query = supabase
     .from('projects')
     .select('*')
     .order('scheduled_date', { ascending: true, nullsFirst: false })
+  if (!opts?.includeArchived) {
+    query = query.neq('status', 'archived')
+  }
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }

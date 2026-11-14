@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils'
 const tabs = [
   { to: '/admin/people', label: 'Personnel', icon: Users },
   { to: '/admin/roles', label: 'Roles & permissions', icon: Shield },
-  { to: '/admin/projects', label: 'Projects', icon: Briefcase },
+  { to: '/admin/projects', label: 'All Jobs', icon: Briefcase },
 ]
 
 export function AdminLayout() {
@@ -18,8 +18,8 @@ export function AdminLayout() {
         </h1>
         <p className="mt-2 max-w-2xl text-ink-muted">
           Your personal <span className="font-semibold text-ink">Dashboard</span> is day-to-day work.
-          This area is where General Manager and Operations Manager run the company — personnel,
-          roles, and projects. Personnel type is independent of app role permissions.
+          Stay here to manage the company — personnel, roles, and jobs (create, edit, archive, or
+          delete). Personnel type is independent of app role permissions.
         </p>
       </header>
 
@@ -36,6 +36,7 @@ export function AdminLayout() {
                   : 'border border-gold-line/40 bg-surface-raised text-ink-muted hover:text-ink',
               )
             }
+            end={false}
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}

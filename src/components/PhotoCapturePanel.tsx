@@ -22,8 +22,8 @@ const fileInputStyle = {
 } as const
 
 /**
- * Capture/upload into the master photo library, always tagged to one project.
- * Job is required — that association is what makes the photo appear on the project.
+ * Capture/upload into the master photo library, always tagged to one job.
+ * Job is required — that association is what makes the photo appear on the job.
  */
 export function PhotoCapturePanel({
   jobId,
@@ -34,7 +34,7 @@ export function PhotoCapturePanel({
 }: {
   jobId: string
   jobName?: string
-  /** When true, user cannot change the project (e.g. capturing from job detail). */
+  /** When true, user cannot change the job (e.g. capturing from job detail). */
   lockedJob?: boolean
   defaultCategory?: PhotoCategory
   onUploaded?: () => void
@@ -55,7 +55,7 @@ export function PhotoCapturePanel({
   async function handleFiles(files: FileList | null, input: HTMLInputElement | null) {
     if (!files?.length) return
     if (!activeJobId) {
-      setError('Select a project before capturing. Photos are stored in the library and linked to that job.')
+      setError('Select a job before capturing. Photos are stored in the library and linked to that job.')
       return
     }
     setError(null)
@@ -79,7 +79,7 @@ export function PhotoCapturePanel({
         setCaption('')
         setNotice(
           `${saved} photo${saved === 1 ? '' : 's'} saved to the library and linked to ${
-            activeJob?.name ?? 'this project'
+            activeJob?.name ?? 'this job'
           }.`,
         )
         onUploaded?.()
@@ -95,17 +95,17 @@ export function PhotoCapturePanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-ink-muted">
-        Photos live in one library. Tag the <span className="font-semibold text-ink">project</span> and{' '}
+        Photos live in one library. Tag the <span className="font-semibold text-ink">job</span> and{' '}
         <span className="font-semibold text-ink">type</span> when you capture so they show on that job
         automatically.
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm">
-          <span className="mb-1.5 block font-semibold">Project</span>
+          <span className="mb-1.5 block font-semibold">Job</span>
           {lockedJob ? (
             <div className="flex h-11 items-center rounded-xl border border-gold-line/50 bg-teal-soft px-3 text-sm font-semibold text-teal">
-              {jobName ?? activeJob?.name ?? 'This project'}
+              {jobName ?? activeJob?.name ?? 'This job'}
             </div>
           ) : (
             <select
@@ -113,7 +113,7 @@ export function PhotoCapturePanel({
               onChange={(e) => setSelectedJobId(e.target.value)}
               className="h-11 w-full rounded-xl border border-border px-3"
             >
-              <option value="">Select a project…</option>
+              <option value="">Select a job…</option>
               {data.jobs.map((j) => (
                 <option key={j.id} value={j.id}>
                   {j.name}

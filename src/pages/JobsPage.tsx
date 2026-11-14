@@ -61,7 +61,7 @@ export function JobsPage() {
       <header className="animate-fade-up">
         <h1 className="font-display text-3xl font-bold tracking-tight text-ink">My Jobs</h1>
         <p className="mt-1 text-ink-muted">
-          Search and filter crew assignments. Sample projects across San Jose, Los Gatos, Campbell, and nearby South Bay cities.
+          Search and filter your assigned jobs across San Jose, Los Gatos, Campbell, and nearby South Bay cities.
         </p>
       </header>
 

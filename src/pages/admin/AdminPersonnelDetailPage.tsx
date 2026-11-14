@@ -328,7 +328,7 @@ export function AdminPersonnelDetailPage() {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'overview', label: 'Overview' },
     { key: 'skills', label: 'Skills' },
-    { key: 'projects', label: 'Projects' },
+    { key: 'projects', label: 'Jobs' },
     { key: 'compliance', label: 'Compliance' },
     { key: 'documents', label: 'Documents' },
     { key: 'access', label: 'System Access' },
@@ -1060,9 +1060,9 @@ function ProjectsSection({
 
   return (
     <Card className="space-y-4 p-5">
-      <SectionHeader title="Project assignments" subtitle="Section E" />
+      <SectionHeader title="Job assignments" subtitle="Section E" />
       {assignments.length === 0 ? (
-        <p className="text-sm text-ink-muted">No project assignments.</p>
+        <p className="text-sm text-ink-muted">No job assignments.</p>
       ) : (
         <ul className="space-y-2">
           {assignments.map((a) => (
@@ -1075,7 +1075,7 @@ function ProjectsSection({
                   to={`/admin/projects/${a.project_id}`}
                   className="font-semibold text-ink hover:text-teal"
                 >
-                  {a.project?.name ?? 'Project'}{' '}
+                  {a.project?.name ?? 'Job'}{' '}
                   <span className="font-mono text-xs text-ink-muted">
                     {a.project?.job_number}
                   </span>
@@ -1111,7 +1111,7 @@ function ProjectsSection({
       {canEdit && (
         <form onSubmit={addAssignment} className="flex flex-wrap items-end gap-3 border-t border-border pt-4">
           <label className="min-w-[200px] flex-1 text-sm font-semibold">
-            Project
+            Job
             <select
               required
               value={projectId}

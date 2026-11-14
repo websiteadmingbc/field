@@ -28,6 +28,8 @@ type NavItem = {
   label: string
   icon: typeof Home
   end?: boolean
+  /** When set, item stays active for any path under this prefix (e.g. Operations → /admin/*). */
+  activePrefix?: string
 }
 
 export function AppShell() {
@@ -42,13 +44,15 @@ export function AppShell() {
       ...(isOffice
         ? [{ to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
         : [{ to: '/', label: 'Today', icon: Home, end: true }]),
-      { to: '/jobs', label: isOffice ? 'Jobs' : 'My Jobs', icon: Briefcase },
+      { to: '/jobs', label: 'My Jobs', icon: Briefcase },
       { to: '/log', label: 'Daily Log', icon: ClipboardList },
       { to: '/photos', label: 'Photos', icon: Camera },
       { to: '/team', label: 'Team', icon: Users },
       { to: '/customers', label: 'Customers', icon: Building2 },
       { to: '/notifications', label: 'Updates', icon: Bell },
-      ...(showAdmin ? [{ to: '/admin/people', label: 'Operations', icon: Settings2 }] : []),
+      ...(showAdmin
+        ? [{ to: '/admin/people', label: 'Operations', icon: Settings2, activePrefix: '/admin' }]
+        : []),
       { to: '/help', label: 'Help', icon: CircleHelp },
       { to: '/privacy', label: 'Privacy', icon: Shield },
     ]
@@ -63,7 +67,9 @@ export function AppShell() {
       return [
         { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
         { to: '/jobs', label: 'Jobs', icon: Briefcase },
-        ...(showAdmin ? [{ to: '/admin/people', label: 'Ops', icon: Settings2 }] : []),
+        ...(showAdmin
+          ? [{ to: '/admin/people', label: 'Ops', icon: Settings2, activePrefix: '/admin' }]
+          : []),
         { to: '/photos', label: 'Photos', icon: Camera },
         { to: '/notifications', label: 'Updates', icon: Bell },
       ]
@@ -81,6 +87,16 @@ export function AppShell() {
     profile && isOfficeRole(profile.app_role)
       ? roleLabel(profile.app_role)
       : currentUser?.role
+
+  function navItemActive(item: NavItem, isActive: boolean): boolean {
+    if (item.activePrefix) {
+      return (
+        location.pathname === item.activePrefix ||
+        location.pathname.startsWith(`${item.activePrefix}/`)
+      )
+    }
+    return isActive
+  }
 
   return (
     <div className="min-h-dvh bg-surface lg:flex">
@@ -102,7 +118,7 @@ export function AppShell() {
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold uppercase tracking-wide transition',
-                  isActive
+                  navItemActive(item, isActive)
                     ? 'bg-teal-fill text-on-teal'
                     : 'text-white/70 hover:bg-white/5 hover:text-white',
                 )
@@ -223,7 +239,9 @@ export function AppShell() {
                     className={({ isActive }) =>
                       cn(
                         'flex items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold uppercase tracking-wide',
-                        isActive ? 'bg-teal-fill text-on-teal' : 'hover:bg-white/5',
+                        navItemActive(item, isActive)
+                          ? 'bg-teal-fill text-on-teal'
+                          : 'hover:bg-white/5',
                       )
                     }
                   >
@@ -284,19 +302,22 @@ export function AppShell() {
                 className={({ isActive }) =>
                   cn(
                     'relative flex min-w-[64px] flex-col items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition',
-                    isActive ? 'text-teal' : 'text-ink-muted',
+                    navItemActive(item, isActive) ? 'text-teal' : 'text-ink-muted',
                   )
                 }
               >
-                {({ isActive }) => (
-                  <>
-                    <item.icon className={cn('h-5 w-5', isActive && 'stroke-[2.5]')} />
-                    {item.label}
-                    {item.to === '/notifications' && unreadCount > 0 && (
-                      <span className="absolute right-1 top-0 h-2 w-2 rounded-full bg-teal-fill" />
-                    )}
-                  </>
-                )}
+                {({ isActive }) => {
+                  const active = navItemActive(item, isActive)
+                  return (
+                    <>
+                      <item.icon className={cn('h-5 w-5', active && 'stroke-[2.5]')} />
+                      {item.label}
+                      {item.to === '/notifications' && unreadCount > 0 && (
+                        <span className="absolute right-1 top-0 h-2 w-2 rounded-full bg-teal-fill" />
+                      )}
+                    </>
+                  )
+                }}
               </NavLink>
             ))}
           </div>
