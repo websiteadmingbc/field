@@ -85,6 +85,27 @@ export function canSetDocumentLegalHold(role: AppRole | null | undefined): boole
   return role === 'admin'
 }
 
+/** Subcontractor on an assigned job may upload Submittals only (Phase 4). */
+export function canUploadJobSubmittals(role: AppRole | null | undefined): boolean {
+  return role === 'subcontractor'
+}
+
+/** Field users who can pin Current Docs offline. */
+export function canPinJobDocuments(role: AppRole | null | undefined): boolean {
+  if (!role) return false
+  return (
+    canManageJobDocuments(role) ||
+    role === 'crew' ||
+    role === 'tradesperson' ||
+    role === 'laborer' ||
+    role === 'apprentice' ||
+    role === 'equipment_operator' ||
+    role === 'crew_lead' ||
+    role === 'site_supervisor' ||
+    role === 'safety_officer'
+  )
+}
+
 export function roleLabel(role: AppRole): string {
   return ROLE_LABELS[role] ?? role
 }

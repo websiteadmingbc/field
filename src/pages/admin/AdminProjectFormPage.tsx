@@ -4,7 +4,11 @@ import { Archive, ArrowLeft, Trash2 } from 'lucide-react'
 import { JobDocumentsPanel } from '../../components/documents/JobDocumentsPanel'
 import { onJobCompletedDocuments } from '../../lib/supabase/documents'
 import { useAuth } from '../../context/AuthContext'
-import { canPurgeDocuments, canSetDocumentLegalHold } from '../../types/auth'
+import {
+  canPinJobDocuments,
+  canPurgeDocuments,
+  canSetDocumentLegalHold,
+} from '../../types/auth'
 import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -51,6 +55,7 @@ export function AdminProjectFormPage() {
   const { profile } = useAuth()
   const purgeDocs = canPurgeDocuments(profile?.app_role)
   const holdDocs = canSetDocumentLegalHold(profile?.app_role)
+  const pinDocs = canPinJobDocuments(profile?.app_role)
 
   const [tab, setTab] = useState<Tab>('details')
   const [form, setForm] = useState<ProjectInput>(emptyProjectInput())
@@ -757,6 +762,7 @@ export function AdminProjectFormPage() {
           canManage
           canPurge={purgeDocs}
           canHold={holdDocs}
+          canPin={pinDocs}
         />
       )}
 

@@ -21,6 +21,8 @@ import {
   downloadDocumentsZip,
   downloadTextFile,
 } from '../../lib/documents/exportLibrary'
+import { listPinnedDocuments, openPinnedBlob, type PinnedDocument } from '../../lib/documents/offlinePins'
+import { DocumentCollaboratePanel } from './DocumentCollaboratePanel'
 import { Button } from '../ui/Button'
 import { Card, SectionHeader } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
@@ -75,6 +77,10 @@ type Props = {
   canPurge?: boolean
   /** Owner/Admin — legal hold */
   canHold?: boolean
+  /** Subcontractor — Submittals only on assigned jobs */
+  canUploadSubmittals?: boolean
+  /** Pin Current Docs offline */
+  canPin?: boolean
 }
 
 type DraftItem = {
@@ -95,9 +101,11 @@ export function JobDocumentsPanel({
   fieldMode = false,
   canPurge = false,
   canHold = false,
+  canUploadSubmittals = false,
+  canPin = false,
 }: Props) {
   const remote = isSupabaseConfigured()
-  const { pushNotification } = useApp()
+  const { pushNotification, data } = useApp()
   const [categories, setCategories] = useState<DocumentCategory[]>([])
   const [docs, setDocs] = useState<LibraryDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -113,6 +121,7 @@ export function JobDocumentsPanel({
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [exportProgress, setExportProgress] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [pins, setPins] = useState<PinnedDocument[]>([])
 
   const load = useCallback(async () => {
     if (!remote) {
@@ -125,23 +134,29 @@ export function JobDocumentsPanel({
     try {
       const status: DocumentStatus =
         canManage && view !== 'active' ? view : 'active'
-      const [cats, list] = await Promise.all([
+      // Subs see RLS-filtered shared docs; crew field mode keeps field-visible categories only
+      const useFieldFilter = fieldMode && !canManage && !canUploadSubmittals
+      const [cats, list, pinned] = await Promise.all([
         fetchDocumentCategories('job'),
         fetchJobDocuments(jobId, {
-          fieldMode: fieldMode && !canManage,
+          fieldMode: useFieldFilter,
           status: canManage ? status : 'active',
           categoryId: categoryFilter || null,
           query,
         }),
+        canPin ? listPinnedDocuments(jobId) : Promise.resolve([] as PinnedDocument[]),
       ])
-      setCategories(cats)
+      setCategories(
+        canUploadSubmittals && !canManage ? cats.filter((c) => c.code === 'SUB') : cats,
+      )
       setDocs(list)
+      setPins(pinned)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load documents')
     } finally {
       setLoading(false)
     }
-  }, [remote, jobId, fieldMode, canManage, view, categoryFilter, query])
+  }, [remote, jobId, fieldMode, canManage, canUploadSubmittals, canPin, view, categoryFilter, query])
 
   useEffect(() => {
     void load()
@@ -346,11 +361,19 @@ export function JobDocumentsPanel({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <SectionHeader
-          title={fieldMode && !canManage ? 'Current docs' : 'Documents'}
+          title={
+            canUploadSubmittals && !canManage
+              ? 'Shared docs & submittals'
+              : fieldMode && !canManage
+                ? 'Current docs'
+                : 'Documents'
+          }
           subtitle={
-            fieldMode && !canManage
-              ? 'Latest field-visible plans, permits, and safety docs (current revision only)'
-              : `${jobName} · revisions, archive, trash${canPurge ? ', purge' : ''}`
+            canUploadSubmittals && !canManage
+              ? 'Docs shared with you · upload Submittals for this assigned job'
+              : fieldMode && !canManage
+                ? 'Latest field-visible plans, permits, and safety docs · pin for offline'
+                : `${jobName} · revisions, archive, export, share`
           }
         />
         <div className="flex flex-wrap gap-2">
@@ -358,6 +381,12 @@ export function JobDocumentsPanel({
             <RefreshCw className="h-4 w-4" />
             Refresh
           </Button>
+          {(canManage || canUploadSubmittals) && (
+            <Button type="button" size="sm" onClick={() => setImportOpen(true)}>
+              <Plus className="h-4 w-4" />
+              {canUploadSubmittals && !canManage ? 'Upload submittal' : 'Import'}
+            </Button>
+          )}
           {canManage && (
             <>
               <select
@@ -398,14 +427,36 @@ export function JobDocumentsPanel({
                 <Package className="h-4 w-4" />
                 Closeout
               </Button>
-              <Button type="button" size="sm" onClick={() => setImportOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Import
-              </Button>
             </>
           )}
         </div>
       </div>
+
+      {canPin && pins.length > 0 && (
+        <div className="rounded-2xl border border-gold-line/40 bg-teal-soft/20 p-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-teal">
+            Pinned offline · {pins.length}
+          </p>
+          <ul className="space-y-2">
+            {pins.map((p) => (
+              <li key={p.documentId}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl bg-surface-raised px-3 py-3 text-left"
+                  onClick={() => openPinnedBlob(p)}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-ink">{p.title}</span>
+                    <span className="text-xs text-ink-muted">
+                      {p.categoryName} · {p.revLabel} · offline
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {canManage && (checkedIds.size > 0 || exportProgress) && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold-line/40 bg-teal-soft/30 px-3 py-2 text-sm">
@@ -503,13 +554,13 @@ export function JobDocumentsPanel({
                   : 'Field docs will show here when uploaded for this job.'
           }
           action={
-            canManage && view === 'active' ? (
+            (canManage || canUploadSubmittals) && view === 'active' ? (
               <button
                 type="button"
                 className="text-sm font-semibold text-teal hover:underline"
                 onClick={() => setImportOpen(true)}
               >
-                Import documents
+                {canUploadSubmittals && !canManage ? 'Upload submittal' : 'Import documents'}
               </button>
             ) : undefined
           }
@@ -652,11 +703,12 @@ export function JobDocumentsPanel({
         </div>
       )}
 
-      {importOpen && canManage && (
+      {importOpen && (canManage || canUploadSubmittals) && (
         <ImportWizard
           jobId={jobId}
           jobNumber={jobNumber}
           categories={categories}
+          submittalOnly={canUploadSubmittals && !canManage}
           onClose={() => setImportOpen(false)}
           onDone={async () => {
             setImportOpen(false)
@@ -668,9 +720,13 @@ export function JobDocumentsPanel({
       {selected && (
         <DocumentDrawer
           doc={selected}
+          jobId={jobId}
+          jobNumber={jobNumber}
           canManage={canManage}
           canPurge={canPurge}
           canHold={canHold}
+          canPin={canPin}
+          dailyLogs={data.dailyLogs}
           categories={categories}
           previewUrl={previewUrl}
           events={events}
@@ -704,20 +760,23 @@ function ImportWizard({
   jobId,
   jobNumber,
   categories,
+  submittalOnly = false,
   onClose,
   onDone,
 }: {
   jobId: string
   jobNumber: string
   categories: DocumentCategory[]
+  submittalOnly?: boolean
   onClose: () => void
   onDone: () => Promise<void>
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const subCat = categories.find((c) => c.code === 'SUB') ?? categories[0]
   const [items, setItems] = useState<DraftItem[]>([])
-  const [batchCategoryId, setBatchCategoryId] = useState(categories[0]?.id ?? '')
+  const [batchCategoryId, setBatchCategoryId] = useState(submittalOnly ? subCat?.id ?? '' : categories[0]?.id ?? '')
   const [batchVisibility, setBatchVisibility] = useState<DocumentVisibility>(
-    categories[0]?.default_visibility ?? 'internal',
+    submittalOnly ? 'shared' : categories[0]?.default_visibility ?? 'internal',
   )
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState('')
@@ -728,31 +787,33 @@ function ImportWizard({
     const next: DraftItem[] = []
     for (const file of Array.from(fileList)) {
       if (items.length + next.length >= MAX_IMPORT_BATCH) break
-      const cat = defaultCategoryForFile(file, categories)
+      const cat = submittalOnly ? subCat : defaultCategoryForFile(file, categories)
       const title = file.name.replace(/\.[^.]+$/, '')
       const categoryId = cat?.id ?? batchCategoryId
       let reviseDocumentId: string | null = null
       let matchTitle: string | null = null
-      try {
-        const match = await findMatchingDocument({ jobId, categoryId, title })
-        if (match && cat?.versioned !== false) {
-          const asRev = confirm(
-            `“${title}” already exists in this category.\n\nOK = upload as new revision (supersede current)\nCancel = separate document`,
-          )
-          if (asRev) {
-            reviseDocumentId = match.id
-            matchTitle = match.title
+      if (!submittalOnly) {
+        try {
+          const match = await findMatchingDocument({ jobId, categoryId, title })
+          if (match && cat?.versioned !== false) {
+            const asRev = confirm(
+              `“${title}” already exists in this category.\n\nOK = upload as new revision (supersede current)\nCancel = separate document`,
+            )
+            if (asRev) {
+              reviseDocumentId = match.id
+              matchTitle = match.title
+            }
           }
+        } catch {
+          /* ignore match lookup failures during draft */
         }
-      } catch {
-        /* ignore match lookup failures during draft */
       }
       next.push({
         key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
         file,
         title,
         categoryId,
-        visibility: cat?.default_visibility ?? batchVisibility,
+        visibility: submittalOnly ? 'shared' : cat?.default_visibility ?? batchVisibility,
         reviseDocumentId,
         matchTitle,
       })
@@ -806,8 +867,12 @@ function ImportWizard({
       <Card className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-teal">Import</p>
-            <h3 className="font-display text-xl font-semibold text-ink">Add documents</h3>
+            <p className="text-xs font-semibold uppercase tracking-wider text-teal">
+              {submittalOnly ? 'Submittal' : 'Import'}
+            </p>
+            <h3 className="font-display text-xl font-semibold text-ink">
+              {submittalOnly ? 'Upload submittal' : 'Add documents'}
+            </h3>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-2 hover:bg-surface" aria-label="Close">
             <X className="h-5 w-5" />
@@ -841,46 +906,54 @@ function ImportWizard({
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="text-sm font-semibold sm:col-span-1">
-              Category (batch)
-              <select
-                value={batchCategoryId}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setBatchCategoryId(id)
-                  const cat = categories.find((c) => c.id === id)
-                  if (cat) setBatchVisibility(cat.default_visibility)
-                }}
-                className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-2"
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm font-semibold">
-              Visibility (batch)
-              <select
-                value={batchVisibility}
-                onChange={(e) => setBatchVisibility(e.target.value as DocumentVisibility)}
-                className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-2"
-              >
-                {(Object.keys(DOCUMENT_VISIBILITY_LABELS) as DocumentVisibility[]).map((v) => (
-                  <option key={v} value={v}>
-                    {DOCUMENT_VISIBILITY_LABELS[v]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end">
-              <Button type="button" variant="outline" size="sm" className="w-full" onClick={applyBatchDefaults}>
-                Apply to all
-              </Button>
+          {!submittalOnly && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="text-sm font-semibold sm:col-span-1">
+                Category (batch)
+                <select
+                  value={batchCategoryId}
+                  onChange={(e) => {
+                    const id = e.target.value
+                    setBatchCategoryId(id)
+                    const cat = categories.find((c) => c.id === id)
+                    if (cat) setBatchVisibility(cat.default_visibility)
+                  }}
+                  className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-2"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm font-semibold">
+                Visibility (batch)
+                <select
+                  value={batchVisibility}
+                  onChange={(e) => setBatchVisibility(e.target.value as DocumentVisibility)}
+                  className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-2"
+                >
+                  {(Object.keys(DOCUMENT_VISIBILITY_LABELS) as DocumentVisibility[]).map((v) => (
+                    <option key={v} value={v}>
+                      {DOCUMENT_VISIBILITY_LABELS[v]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <Button type="button" variant="outline" size="sm" className="w-full" onClick={applyBatchDefaults}>
+                  Apply to all
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
+          {submittalOnly && (
+            <p className="text-sm text-ink-muted">
+              Files upload as <span className="font-semibold text-ink">Submittals</span> with Shared
+              visibility on this job only.
+            </p>
+          )}
 
           {items.length > 0 && (
             <ul className="divide-y divide-border rounded-xl border border-border">
@@ -973,9 +1046,13 @@ function ImportWizard({
 
 function DocumentDrawer({
   doc,
+  jobId,
+  jobNumber,
   canManage,
   canPurge,
   canHold,
+  canPin,
+  dailyLogs,
   categories,
   previewUrl,
   events,
@@ -989,9 +1066,13 @@ function DocumentDrawer({
   onRefreshSelected,
 }: {
   doc: LibraryDocument
+  jobId: string
+  jobNumber: string
   canManage: boolean
   canPurge: boolean
   canHold: boolean
+  canPin: boolean
+  dailyLogs: import('../../types').DailyLog[]
   categories: DocumentCategory[]
   previewUrl: string | null
   events: DocumentEvent[]
@@ -1236,6 +1317,15 @@ function DocumentDrawer({
               </Button>
             </div>
           )}
+
+          <DocumentCollaboratePanel
+            doc={doc}
+            jobId={jobId}
+            jobNumber={jobNumber}
+            canManage={canManage}
+            canPin={canPin}
+            dailyLogs={dailyLogs}
+          />
 
           {canManage && events.length > 0 && (
             <div>

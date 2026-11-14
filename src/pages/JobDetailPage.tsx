@@ -27,8 +27,10 @@ import { useAuth } from '../context/AuthContext'
 import { onJobCompletedDocuments } from '../lib/supabase/documents'
 import {
   canManageJobDocuments,
+  canPinJobDocuments,
   canPurgeDocuments,
   canSetDocumentLegalHold,
+  canUploadJobSubmittals,
 } from '../types/auth'
 import { isSupabaseConfigured } from '../lib/supabase/client'
 import {
@@ -66,6 +68,8 @@ export function JobDetailPage() {
   const manageDocs = canManageJobDocuments(profile?.app_role)
   const purgeDocs = canPurgeDocuments(profile?.app_role)
   const holdDocs = canSetDocumentLegalHold(profile?.app_role)
+  const uploadSubmittals = canUploadJobSubmittals(profile?.app_role)
+  const pinDocs = canPinJobDocuments(profile?.app_role)
   const job = getJob(jobId ?? '')
 
   async function handleStatusChange(next: JobStatus) {
@@ -445,6 +449,8 @@ export function JobDetailPage() {
           fieldMode={!manageDocs}
           canPurge={purgeDocs}
           canHold={holdDocs}
+          canUploadSubmittals={uploadSubmittals}
+          canPin={pinDocs || manageDocs}
         />
       </section>
 
