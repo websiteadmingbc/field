@@ -1178,7 +1178,7 @@ function ComplianceSection({
     return (
       <Card className="p-5">
         <p className="text-sm text-ink-muted">
-          Compliance records are restricted to Owner/Admin and General Manager.
+          Compliance records are restricted to Owner/Admin, General Manager, and Operations Manager.
         </p>
       </Card>
     )

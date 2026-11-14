@@ -42,9 +42,11 @@ Deno.serve(async (req) => {
 
     const canInvite =
       callerProfile?.active &&
-      (callerProfile.app_role === 'admin' || callerProfile.app_role === 'general_manager')
+      (callerProfile.app_role === 'admin' ||
+        callerProfile.app_role === 'general_manager' ||
+        callerProfile.app_role === 'operations_manager')
     if (profileError || !canInvite) {
-      return json({ error: 'Only Owner/Admin or General Manager can invite users' }, 403)
+      return json({ error: 'Only Owner/Admin, General Manager, or Operations Manager can invite users' }, 403)
     }
 
     const body = await req.json()

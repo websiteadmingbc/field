@@ -208,7 +208,7 @@ const SECTIONS: HelpSection[] = [
       'After they sign in, assign them to jobs so crew-scoped roles see the right work.',
     ],
     tips: [
-      'Only Owner/Admin and General Manager can invite and change roles.',
+      'Owner/Admin, General Manager, and Operations Manager can invite and change roles.',
       'Job title on the profile is display-only; App role controls permissions.',
       'If invite fails, the invite-user Edge Function may need to be deployed (see project README).',
     ],

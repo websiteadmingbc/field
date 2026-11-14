@@ -100,11 +100,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return { error: 'Supabase is not configured.' }
 
     const redirectTo = `${window.location.origin}/auth/callback`
+    // Invite-only: do not create Auth users from the login form.
+    // New accounts must be provisioned via Operations → invite (Edge Function).
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: redirectTo },
+      options: {
+        emailRedirectTo: redirectTo,
+        shouldCreateUser: false,
+      },
     })
-    return { error: error?.message ?? null }
+    if (!error) return { error: null }
+
+    const message = error.message ?? ''
+    if (/signups?\s+not\s+allowed|user\s+not\s+found|unable to (find|create)|not registered/i.test(message)) {
+      return {
+        error:
+          'This email is not invited. Ask an Owner/Admin, General Manager, or Operations Manager to send an invite from Operations.',
+      }
+    }
+    return { error: message }
   }, [])
 
   const verifyEmailOtp = useCallback(async (email: string, token: string) => {

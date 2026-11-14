@@ -29,7 +29,7 @@ export function canAccessAdminConsole(role: AppRole | null | undefined): boolean
   return !!role && ADMIN_CONSOLE_ROLES.includes(role)
 }
 
-/** Owner/Admin + GM — invite users and change roles */
+/** Owner/Admin, GM, Ops Manager — invite users, manage personnel, change roles */
 export function canManageUsers(role: AppRole | null | undefined): boolean {
   return !!role && USER_MANAGER_ROLES.includes(role)
 }

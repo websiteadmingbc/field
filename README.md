@@ -15,7 +15,7 @@ npm run dev
 
 Without `.env.local`, the app runs in **demo mode** (localStorage POC data, no login).
 
-With Supabase configured, users sign in at `/login` via **email one-time code** (invite-only; works across devices). Optionally update **Authentication → Email Templates → Magic Link** using `supabase/email-template-magic-link.html` so the email shows the code and a cross-device clickable link.
+With Supabase configured, users sign in at `/login` via **email one-time code**. Access is **invite-only**: the login form will not create accounts (`shouldCreateUser: false`). New users must be invited from **Operations** (Edge Function `invite-user`). Optionally update **Authentication → Email Templates → Magic Link** using `supabase/email-template-magic-link.html` so the email shows the code and a cross-device clickable link.
 
 ## Supabase setup (version 1)
 
@@ -24,7 +24,7 @@ With Supabase configured, users sign in at `/login` via **email one-time code** 
 3. **Authentication → URL configuration**
    - Site URL: `https://field.greatbrittongc.com`
    - Redirect URLs: `https://field.greatbrittongc.com/auth/callback`, `http://localhost:5173/auth/callback`
-4. **Authentication → Providers → Email**: enable magic link / OTP (disable public sign-ups if offered).
+4. **Authentication → Providers → Email**: enable magic link / OTP. Turn **Allow new users to sign up** **OFF** so only invited Auth users can request a code.
 5. Copy Project URL + `anon` key into `.env.local` (and GitHub Actions secrets for production).
 6. **Authentication → Users**: invite people; then set `app_role` on `profiles` (`admin` | `project_manager` | `site_supervisor` | `crew`).
 7. Enter **projects**, **site_contacts**, and **project_assignments** in the Table Editor (admin).

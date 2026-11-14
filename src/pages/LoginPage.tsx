@@ -81,8 +81,8 @@ export function LoginPage() {
               />
             </div>
             <p className="text-ink-muted">
-              Sign in with the email your office invited. We email a one-time code — works on any
-              device.
+              Invite-only access. Use the work email your office invited — we send a one-time code
+              that works on any device.
             </p>
           </div>
 
@@ -197,7 +197,7 @@ export function LoginPage() {
           </div>
 
           <p className="mt-6 text-center text-xs text-ink-subtle">
-            Need access? Ask an admin to invite you in Supabase.
+            Need access? Ask Operations (Owner/Admin, GM, or Ops Manager) to send an invite.
             <br />
             <Link to="/privacy" className="mt-2 inline-block text-teal underline-offset-2 hover:underline">
               Privacy

@@ -82,7 +82,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   admin: 'Full system control. Company settings, users, billing, and all modules.',
   general_manager: 'Runs the business day-to-day. Full ops except owner-only settings.',
-  operations_manager: 'Field + office coordination. Broad view; limited user admin.',
+  operations_manager: 'Field + office coordination. Same Operations user admin as Owner/Admin and GM (invite, roles, personnel).',
   estimator: 'Estimates, bids, and related project setup.',
   office_manager: 'Office workflows, clients, docs, and coordination.',
   bookkeeper: 'Invoices, payments, job costing, and financial reports.',
@@ -171,7 +171,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
 
   operations_manager: {
     company_settings: none(),
-    users_roles: p(V, 'company', 'View directory; cannot change roles'),
+    users_roles: p(CVED, 'company', 'Same as Owner/Admin & GM — invite, personnel, roles'),
     projects: p(CVE, 'company'),
     clients: p(CVE, 'company'),
     estimates_bids: p(VA, 'company'),
@@ -377,7 +377,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
 export const APP_ROLES = Object.keys(ROLE_LABELS) as AppRole[]
 
 export const ADMIN_CONSOLE_ROLES: AppRole[] = ['admin', 'general_manager', 'operations_manager']
-export const USER_MANAGER_ROLES: AppRole[] = ['admin', 'general_manager']
+export const USER_MANAGER_ROLES: AppRole[] = ['admin', 'general_manager', 'operations_manager']
 
 export function getModulePermission(role: AppRole, module: ModuleKey): ModulePermission {
   return PERMISSION_MATRIX[role]?.[module] ?? none()

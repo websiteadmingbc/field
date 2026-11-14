@@ -84,7 +84,7 @@ export function AdminPersonnelPage() {
           subtitle={
             canEdit
               ? 'Company directory — employees, contractors, and affiliates.'
-              : 'View-only directory. Owner/Admin and General Manager can edit.'
+              : 'View-only directory. Owner/Admin, General Manager, or Operations Manager can edit.'
           }
         />
         {canEdit && (
@@ -216,7 +216,7 @@ export function AdminPersonnelPage() {
             description={
               canEdit
                 ? 'Add your first person or clear filters.'
-                : 'Ask an Owner/Admin or General Manager to add personnel.'
+                : 'Ask an Owner/Admin, General Manager, or Operations Manager to add personnel.'
             }
           />
         ) : (
