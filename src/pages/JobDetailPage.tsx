@@ -6,7 +6,6 @@ import {
   CheckSquare,
   ClipboardList,
   ExternalLink,
-  FileText,
   Mail,
   MapPin,
   Navigation,
@@ -14,6 +13,7 @@ import {
   Phone,
   Plus,
 } from 'lucide-react'
+import { JobDocumentsPanel } from '../components/documents/JobDocumentsPanel'
 import { LocationDetailsModal } from '../components/LocationDetailsModal'
 import { PhotoCapturePanel } from '../components/PhotoCapturePanel'
 import { Button } from '../components/ui/Button'
@@ -23,6 +23,8 @@ import { PhotoThumb } from '../components/ui/PhotoThumb'
 import { Lightbox } from '../components/ui/Lightbox'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
+import { canManageJobDocuments } from '../types/auth'
 import {
   emailHref,
   formatDate,
@@ -54,6 +56,8 @@ export function JobDetailPage() {
     remote,
     refreshRemote,
   } = useApp()
+  const { profile } = useAuth()
+  const manageDocs = canManageJobDocuments(profile?.app_role)
   const job = getJob(jobId ?? '')
   const [noteText, setNoteText] = useState('')
   const [materialName, setMaterialName] = useState('')
@@ -400,24 +404,15 @@ export function JobDetailPage() {
         </Card>
       </section>
 
-      {/* Documents */}
+      {/* Document Library — Phase 1 (lives on the job; no global sidebar) */}
       <section>
-        <SectionHeader title="Important documents" subtitle="Reference only in this POC" />
-        <div className="grid gap-3 sm:grid-cols-2">
-          {job.documents.map((doc) => (
-            <Card key={doc.id} className="flex gap-3 p-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-soft text-sky">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-ink">{doc.title}</p>
-                <p className="text-xs text-ink-muted">
-                  {doc.type} · {doc.description}
-                </p>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <JobDocumentsPanel
+          jobId={job.id}
+          jobNumber={job.jobNumber}
+          jobName={job.name}
+          canManage={manageDocs}
+          fieldMode={!manageDocs}
+        />
       </section>
 
       {/* Notes */}

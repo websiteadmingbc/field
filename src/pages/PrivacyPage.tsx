@@ -38,9 +38,14 @@ export function PrivacyPage() {
           body="Daily logs capture work progress and hand-off notes. There are no individual performance dashboards or rankings by activity."
         />
         <Principle
+          icon={<FileText className="h-5 w-5" />}
+          title="Job documents stay controlled"
+          body="Contracts, drawings, permits, and other job files live in a private Document Library on each job. Access follows your app role and job assignment. Sensitive categories default to Internal. Soft delete goes to Trash first; permanent purge (later phase) requires Owner confirmation and retention checks. Downloads use short-lived signed links."
+        />
+        <Principle
           icon={<Shield className="h-5 w-5" />}
-          title="What is saved locally"
-          body="Job details, notes, logs, notifications, and photos you add are stored in this browser (localStorage and IndexedDB). In this POC, nothing is sent to a server. Your crew would only see shared job information that is intentionally entered."
+          title="What is saved"
+          body="When connected to the company workspace, job details, logs, photos, and Document Library files are stored in Great Britton’s secured Supabase project. Demo mode may still keep sample data only on this device."
         />
       </Card>
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Trash2 } from 'lucide-react'
+import { JobDocumentsPanel } from '../../components/documents/JobDocumentsPanel'
 import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -32,7 +33,7 @@ import { geocodeAddress, statusLabel } from '../../lib/utils'
 import { useApp } from '../../context/AppContext'
 import type { JobPhoto } from '../../types'
 
-type Tab = 'details' | 'crew' | 'contacts' | 'photos'
+type Tab = 'details' | 'crew' | 'contacts' | 'documents' | 'photos'
 
 const fieldClass =
   'mt-1.5 h-11 w-full rounded-md border border-border bg-surface px-3 text-ink outline-none focus:border-gold-line'
@@ -361,6 +362,7 @@ export function AdminProjectFormPage() {
               ['details', 'Details'],
               ['crew', 'Crew assignments'],
               ['contacts', 'Site contacts'],
+              ['documents', 'Documents'],
               ['photos', 'Photos'],
             ] as const
           ).map(([id, label]) => (
@@ -721,6 +723,15 @@ export function AdminProjectFormPage() {
             </form>
           </Card>
         </div>
+      )}
+
+      {!isNew && tab === 'documents' && projectId && (
+        <JobDocumentsPanel
+          jobId={projectId}
+          jobNumber={form.job_number}
+          jobName={form.name}
+          canManage
+        />
       )}
 
       {!isNew && tab === 'photos' && projectId && (

@@ -4,12 +4,14 @@ import { Briefcase, Plus, RefreshCw, Search } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { fetchJobDocumentCounts } from '../../lib/supabase/documents'
 import { fetchProjects } from '../../lib/supabase/projects'
 import type { ProjectRow } from '../../lib/supabase/database.types'
 import { cn, formatShortDate } from '../../lib/utils'
 
 export function AdminProjectsPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([])
+  const [docCounts, setDocCounts] = useState<Record<string, number>>({})
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -19,7 +21,9 @@ export function AdminProjectsPage() {
     setLoading(true)
     setError(null)
     try {
-      setProjects(await fetchProjects({ includeArchived: true }))
+      const list = await fetchProjects({ includeArchived: true })
+      setProjects(list)
+      setDocCounts(await fetchJobDocumentCounts(list.map((p) => p.id)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load jobs')
     } finally {
@@ -123,6 +127,7 @@ export function AdminProjectsPage() {
                     <p className="truncate text-xs text-ink-muted">
                       {p.job_number} · {p.client} · {p.city || p.address}
                       {p.scheduled_date ? ` · ${formatShortDate(p.scheduled_date)}` : ''}
+                      {` · ${docCounts[p.id] ?? 0} docs`}
                     </p>
                   </div>
                   <StatusBadge status={p.status} />

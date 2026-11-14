@@ -60,6 +60,21 @@ export function canPostNotices(role: AppRole | null | undefined): boolean {
   return isOfficeRole(role)
 }
 
+/** Import / trash / metadata on job documents (Phase 1 Document Library). */
+export function canManageJobDocuments(role: AppRole | null | undefined): boolean {
+  if (!role) return false
+  return (
+    canAccessAdminConsole(role) ||
+    role === 'project_manager' ||
+    role === 'project_coordinator' ||
+    role === 'project_engineer' ||
+    role === 'site_supervisor' ||
+    role === 'crew_lead' ||
+    role === 'estimator' ||
+    role === 'office_manager'
+  )
+}
+
 export function roleLabel(role: AppRole): string {
   return ROLE_LABELS[role] ?? role
 }

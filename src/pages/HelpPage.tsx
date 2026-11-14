@@ -14,6 +14,7 @@ import {
   UserPlus,
   Users,
   Building2,
+  FileText,
 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { cn } from '../lib/utils'
@@ -249,6 +250,26 @@ const SECTIONS: HelpSection[] = [
       { label: 'All Jobs', to: '/admin/projects' },
       { label: 'New Job', to: '/admin/projects/new' },
     ],
+  },
+  {
+    id: 'document-library',
+    title: 'Job Document Library',
+    summary: 'Store contracts, drawings, permits, and other job files on the job (Phase 1).',
+    icon: FileText,
+    adminOnly: true,
+    steps: [
+      'Open Operations → All Jobs → a job → Documents tab (or open the job from My Jobs).',
+      'Click Import, drop files, set category and visibility (Internal / Crew / Shared).',
+      'Review the grid, then Upload. Files are private; downloads use short-lived signed links.',
+      'Use Show trash to soft-delete or restore. Permanent purge comes in a later phase.',
+    ],
+    tips: [
+      'There is no global Documents sidebar — documents always live on a job.',
+      'Crew see field-visible categories (drawings, permits, safety, etc.) on the job page.',
+      'All Jobs lists a doc count so you can spot jobs missing paperwork.',
+      'Later phases: revisions/archive, ZIP closeout export, offline pinning, sub sharing.',
+    ],
+    related: [{ label: 'All Jobs', to: '/admin/projects' }],
   },
   {
     id: 'crew-assignments',
