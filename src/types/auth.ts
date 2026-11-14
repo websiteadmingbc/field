@@ -75,6 +75,16 @@ export function canManageJobDocuments(role: AppRole | null | undefined): boolean
   )
 }
 
+/** Permanent purge — Owner/Admin only (Document Library Phase 2). */
+export function canPurgeDocuments(role: AppRole | null | undefined): boolean {
+  return role === 'admin'
+}
+
+/** Legal hold on/off — Owner/Admin only. */
+export function canSetDocumentLegalHold(role: AppRole | null | undefined): boolean {
+  return role === 'admin'
+}
+
 export function roleLabel(role: AppRole): string {
   return ROLE_LABELS[role] ?? role
 }

@@ -24,7 +24,13 @@ import { Lightbox } from '../components/ui/Lightbox'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { canManageJobDocuments } from '../types/auth'
+import { onJobCompletedDocuments } from '../lib/supabase/documents'
+import {
+  canManageJobDocuments,
+  canPurgeDocuments,
+  canSetDocumentLegalHold,
+} from '../types/auth'
+import { isSupabaseConfigured } from '../lib/supabase/client'
 import {
   emailHref,
   formatDate,
@@ -58,7 +64,32 @@ export function JobDetailPage() {
   } = useApp()
   const { profile } = useAuth()
   const manageDocs = canManageJobDocuments(profile?.app_role)
+  const purgeDocs = canPurgeDocuments(profile?.app_role)
+  const holdDocs = canSetDocumentLegalHold(profile?.app_role)
   const job = getJob(jobId ?? '')
+
+  async function handleStatusChange(next: JobStatus) {
+    if (!job) return
+    updateJobStatus(job.id, next)
+    if (next === 'completed' && manageDocs && isSupabaseConfigured()) {
+      const archiveWorking = confirm(
+        'Job completed. Set retention dates on documents and archive working docs (RFIs, submittals, logs, correspondence, photos)? Closeout and drawings stay active.',
+      )
+      try {
+        const result = await onJobCompletedDocuments(job.id, { archiveWorking })
+        if (archiveWorking) {
+          alert(
+            `Retention updated on ${result.retentionUpdated} doc(s). Archived ${result.archived} working doc(s).`,
+          )
+        } else {
+          alert(`Retention updated on ${result.retentionUpdated} doc(s). Working docs left active.`)
+        }
+      } catch (e) {
+        console.error(e)
+        alert(e instanceof Error ? e.message : 'Could not update document retention')
+      }
+    }
+  }
   const [noteText, setNoteText] = useState('')
   const [materialName, setMaterialName] = useState('')
   const [materialQty, setMaterialQty] = useState('')
@@ -141,7 +172,7 @@ export function JobDetailPage() {
             <StatusBadge status={job.status} />
             <select
               value={job.status}
-              onChange={(e) => updateJobStatus(job.id, e.target.value as JobStatus)}
+              onChange={(e) => void handleStatusChange(e.target.value as JobStatus)}
               className="h-10 rounded-xl border border-border bg-surface-raised px-3 text-sm font-medium capitalize outline-none focus:border-teal-bright"
               aria-label="Update job status"
             >
@@ -412,6 +443,8 @@ export function JobDetailPage() {
           jobName={job.name}
           canManage={manageDocs}
           fieldMode={!manageDocs}
+          canPurge={purgeDocs}
+          canHold={holdDocs}
         />
       </section>
 

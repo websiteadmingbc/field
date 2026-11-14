@@ -131,3 +131,24 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+/** Categories archived when a job is marked completed (working docs). Closeout stays active. */
+export const JOB_COMPLETION_ARCHIVE_CODES = ['RFI', 'SUB', 'LOG', 'CORR', 'PHOTO'] as const
+
+export function nextRevLabel(current: string | null | undefined): string {
+  const m = /R(\d+)/i.exec(current ?? 'R0')
+  const n = m ? Number(m[1]) + 1 : 1
+  return `R${n}`
+}
+
+export function isRetentionSatisfied(retainUntil: string | null | undefined, now = new Date()): boolean {
+  if (!retainUntil) return true
+  const end = new Date(`${retainUntil}T23:59:59`)
+  return end.getTime() <= now.getTime()
+}
+
+export function addYearsToDate(isoDate: string, years: number): string {
+  const d = new Date(`${isoDate}T12:00:00`)
+  d.setFullYear(d.getFullYear() + years)
+  return d.toISOString().slice(0, 10)
+}

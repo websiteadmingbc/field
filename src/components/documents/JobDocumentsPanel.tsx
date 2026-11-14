@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Archive,
   Download,
   FileText,
   Filter,
@@ -10,28 +11,38 @@ import {
   RotateCcw,
   X,
   Eye,
+  Scale,
 } from 'lucide-react'
 import { Button } from '../ui/Button'
 import { Card, SectionHeader } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import {
+  archiveDocument,
   defaultCategoryForFile,
   fetchDocumentCategories,
   fetchDocumentEvents,
+  fetchDocumentVersions,
   fetchJobDocuments,
+  findMatchingDocument,
   getDocumentSignedUrl,
+  getPurgeEligibility,
   logDocumentDownload,
   logDocumentView,
+  purgeDocument,
   restoreDocument,
+  setDocumentLegalHold,
   trashDocument,
   updateDocumentMetadata,
+  uploadDocumentRevision,
   uploadJobDocumentsBatch,
+  type PurgeCheck,
 } from '../../lib/supabase/documents'
 import { cn, formatRelative } from '../../lib/utils'
 import type {
   DocumentCategory,
   DocumentEvent,
   DocumentStatus,
+  DocumentVersion,
   DocumentVisibility,
   LibraryDocument,
 } from '../../types/documents'
@@ -40,17 +51,22 @@ import {
   DOCUMENT_VISIBILITY_LABELS,
   MAX_IMPORT_BATCH,
   formatFileSize,
+  isRetentionSatisfied,
 } from '../../types/documents'
 import { isSupabaseConfigured } from '../../lib/supabase/client'
+
+type LibraryView = 'active' | 'archived' | 'trashed'
 
 type Props = {
   jobId: string
   jobNumber: string
   jobName: string
-  /** Managers see import / trash / all categories; crew gets field mode */
   canManage: boolean
-  /** Compact field list of current crew-visible docs */
   fieldMode?: boolean
+  /** Owner/Admin — permanent purge */
+  canPurge?: boolean
+  /** Owner/Admin — legal hold */
+  canHold?: boolean
 }
 
 type DraftItem = {
@@ -59,6 +75,8 @@ type DraftItem = {
   title: string
   categoryId: string
   visibility: DocumentVisibility
+  reviseDocumentId?: string | null
+  matchTitle?: string | null
 }
 
 export function JobDocumentsPanel({
@@ -67,6 +85,8 @@ export function JobDocumentsPanel({
   jobName,
   canManage,
   fieldMode = false,
+  canPurge = false,
+  canHold = false,
 }: Props) {
   const remote = isSupabaseConfigured()
   const [categories, setCategories] = useState<DocumentCategory[]>([])
@@ -75,10 +95,11 @@ export function JobDocumentsPanel({
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
-  const [showTrash, setShowTrash] = useState(false)
+  const [view, setView] = useState<LibraryView>('active')
   const [importOpen, setImportOpen] = useState(false)
   const [selected, setSelected] = useState<LibraryDocument | null>(null)
   const [events, setEvents] = useState<DocumentEvent[]>([])
+  const [versions, setVersions] = useState<DocumentVersion[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -90,11 +111,13 @@ export function JobDocumentsPanel({
     setLoading(true)
     setError(null)
     try {
+      const status: DocumentStatus =
+        canManage && view !== 'active' ? view : 'active'
       const [cats, list] = await Promise.all([
         fetchDocumentCategories('job'),
         fetchJobDocuments(jobId, {
           fieldMode: fieldMode && !canManage,
-          status: canManage && showTrash ? 'trashed' : 'active',
+          status: canManage ? status : 'active',
           categoryId: categoryFilter || null,
           query,
         }),
@@ -106,7 +129,7 @@ export function JobDocumentsPanel({
     } finally {
       setLoading(false)
     }
-  }, [remote, jobId, fieldMode, canManage, showTrash, categoryFilter, query])
+  }, [remote, jobId, fieldMode, canManage, view, categoryFilter, query])
 
   useEffect(() => {
     void load()
@@ -116,6 +139,7 @@ export function JobDocumentsPanel({
     if (!selected) {
       setPreviewUrl(null)
       setEvents([])
+      setVersions([])
       return
     }
     const path = selected.current_version?.storage_path
@@ -129,6 +153,9 @@ export function JobDocumentsPanel({
       void fetchDocumentEvents(selected.id)
         .then(setEvents)
         .catch(() => setEvents([]))
+      void fetchDocumentVersions(selected.id)
+        .then(setVersions)
+        .catch(() => setVersions([]))
     }
   }, [selected, canManage])
 
@@ -146,6 +173,10 @@ export function JobDocumentsPanel({
   }, [docs])
 
   async function onTrash(doc: LibraryDocument) {
+    if (doc.legal_hold) {
+      setError('On legal hold — lift hold before trashing')
+      return
+    }
     if (!confirm(`Move “${doc.title}” to Trash?`)) return
     try {
       await trashDocument(doc.id)
@@ -153,6 +184,21 @@ export function JobDocumentsPanel({
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Trash failed')
+    }
+  }
+
+  async function onArchive(doc: LibraryDocument) {
+    if (doc.legal_hold) {
+      setError('On legal hold — lift hold before archiving')
+      return
+    }
+    if (!confirm(`Archive “${doc.title}”? It stays searchable under Show archived.`)) return
+    try {
+      await archiveDocument(doc.id)
+      setSelected(null)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Archive failed')
     }
   }
 
@@ -166,15 +212,19 @@ export function JobDocumentsPanel({
     }
   }
 
-  async function onDownload(doc: LibraryDocument) {
-    const path = doc.current_version?.storage_path
+  async function onDownload(doc: LibraryDocument, version?: DocumentVersion | null) {
+    const ver = version ?? doc.current_version
+    const path = ver?.storage_path
     if (!path) return
-    const url = previewUrl && selected?.id === doc.id ? previewUrl : await getDocumentSignedUrl(path)
+    const url =
+      !version && previewUrl && selected?.id === doc.id
+        ? previewUrl
+        : await getDocumentSignedUrl(path)
     if (!url) {
       setError('Could not create download link')
       return
     }
-    await logDocumentDownload(doc.id, doc.current_version_id)
+    await logDocumentDownload(doc.id, ver?.id ?? doc.current_version_id)
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
@@ -195,8 +245,8 @@ export function JobDocumentsPanel({
           title={fieldMode && !canManage ? 'Current docs' : 'Documents'}
           subtitle={
             fieldMode && !canManage
-              ? 'Latest field-visible plans, permits, and safety docs for this job'
-              : `${jobName} · import, view, download, and trash`
+              ? 'Latest field-visible plans, permits, and safety docs (current revision only)'
+              : `${jobName} · revisions, archive, trash${canPurge ? ', purge' : ''}`
           }
         />
         <div className="flex flex-wrap gap-2">
@@ -206,18 +256,15 @@ export function JobDocumentsPanel({
           </Button>
           {canManage && (
             <>
-              <button
-                type="button"
-                onClick={() => setShowTrash((v) => !v)}
-                className={cn(
-                  'h-9 rounded-md border px-3 text-xs font-semibold uppercase tracking-wide',
-                  showTrash
-                    ? 'border-gold-line bg-teal-soft text-teal'
-                    : 'border-gold-line/40 bg-surface-raised text-ink-muted',
-                )}
+              <select
+                value={view}
+                onChange={(e) => setView(e.target.value as LibraryView)}
+                className="h-9 rounded-md border border-gold-line/40 bg-surface-raised px-2 text-xs font-semibold uppercase tracking-wide text-ink"
               >
-                {showTrash ? 'Showing trash' : 'Show trash'}
-              </button>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+                <option value="trashed">Trash</option>
+              </select>
               <Button type="button" size="sm" onClick={() => setImportOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Import
@@ -267,16 +314,24 @@ export function JobDocumentsPanel({
       ) : docs.length === 0 ? (
         <EmptyState
           icon={<FileText className="h-6 w-6" />}
-          title={showTrash ? 'Trash is empty' : 'No documents yet'}
+          title={
+            view === 'trashed'
+              ? 'Trash is empty'
+              : view === 'archived'
+                ? 'No archived documents'
+                : 'No documents yet'
+          }
           description={
-            showTrash
-              ? 'Soft-deleted documents appear here for restore.'
-              : canManage
-                ? 'Import contracts, drawings, permits, and more for this job.'
-                : 'Field docs will show here when uploaded for this job.'
+            view === 'trashed'
+              ? 'Soft-deleted documents appear here for restore or purge.'
+              : view === 'archived'
+                ? 'Archived documents are read-only until restored.'
+                : canManage
+                  ? 'Import contracts, drawings, permits, and more for this job.'
+                  : 'Field docs will show here when uploaded for this job.'
           }
           action={
-            canManage && !showTrash ? (
+            canManage && view === 'active' ? (
               <button
                 type="button"
                 className="text-sm font-semibold text-teal hover:underline"
@@ -312,7 +367,11 @@ export function JobDocumentsPanel({
       ) : (
         <div className="space-y-3">
           {grouped.map(({ category, items }) => (
-            <details key={category?.id ?? 'unknown'} open className="rounded-2xl border border-border bg-surface-raised">
+            <details
+              key={category?.id ?? 'unknown'}
+              open
+              className="rounded-2xl border border-border bg-surface-raised"
+            >
               <summary className="cursor-pointer list-none px-4 py-3 font-semibold text-ink">
                 <span className="inline-flex items-center gap-2">
                   {category?.name ?? 'Uncategorized'}
@@ -332,7 +391,14 @@ export function JobDocumentsPanel({
                       className="min-w-0 flex-1 text-left"
                       onClick={() => setSelected(d)}
                     >
-                      <p className="font-semibold text-ink">{d.title}</p>
+                      <p className="font-semibold text-ink">
+                        {d.title}
+                        {d.legal_hold ? (
+                          <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-amber">
+                            On hold
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="truncate text-xs text-ink-muted">
                         {DOCUMENT_VISIBILITY_LABELS[d.visibility]} ·{' '}
                         {d.current_version?.rev_label ?? 'R0'} ·{' '}
@@ -341,6 +407,7 @@ export function JobDocumentsPanel({
                           : '—'}{' '}
                         · {formatRelative(d.updated_at)}
                         {d.status !== 'active' ? ` · ${DOCUMENT_STATUS_LABELS[d.status]}` : ''}
+                        {d.retain_until ? ` · retain to ${d.retain_until}` : ''}
                       </p>
                     </button>
                     <div className="flex gap-1">
@@ -363,17 +430,28 @@ export function JobDocumentsPanel({
                         <Download className="h-4 w-4" />
                       </Button>
                       {canManage && d.status === 'active' && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void onTrash(d)}
-                          aria-label="Trash"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void onArchive(d)}
+                            aria-label="Archive"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void onTrash(d)}
+                            aria-label="Trash"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
-                      {canManage && d.status === 'trashed' && (
+                      {canManage && (d.status === 'trashed' || d.status === 'archived') && (
                         <Button
                           type="button"
                           variant="ghost"
@@ -410,16 +488,30 @@ export function JobDocumentsPanel({
         <DocumentDrawer
           doc={selected}
           canManage={canManage}
+          canPurge={canPurge}
+          canHold={canHold}
           categories={categories}
           previewUrl={previewUrl}
           events={events}
+          versions={versions}
           onClose={() => setSelected(null)}
-          onDownload={() => void onDownload(selected)}
+          onDownload={(ver) => void onDownload(selected, ver)}
           onTrash={() => void onTrash(selected)}
+          onArchive={() => void onArchive(selected)}
           onRestore={() => void onRestore(selected)}
           onSaved={async () => {
             await load()
             setSelected(null)
+          }}
+          onRefreshSelected={async () => {
+            await load()
+            const refreshed = await fetchJobDocuments(jobId, {
+              status: selected.status,
+              query: selected.title,
+            })
+            const match = refreshed.find((d) => d.id === selected.id)
+            if (match) setSelected(match)
+            else setSelected(null)
           }}
         />
       )}
@@ -450,18 +542,38 @@ function ImportWizard({
   const [progress, setProgress] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  function addFiles(fileList: FileList | null) {
+  async function addFiles(fileList: FileList | null) {
     if (!fileList?.length) return
     const next: DraftItem[] = []
     for (const file of Array.from(fileList)) {
       if (items.length + next.length >= MAX_IMPORT_BATCH) break
       const cat = defaultCategoryForFile(file, categories)
+      const title = file.name.replace(/\.[^.]+$/, '')
+      const categoryId = cat?.id ?? batchCategoryId
+      let reviseDocumentId: string | null = null
+      let matchTitle: string | null = null
+      try {
+        const match = await findMatchingDocument({ jobId, categoryId, title })
+        if (match && cat?.versioned !== false) {
+          const asRev = confirm(
+            `“${title}” already exists in this category.\n\nOK = upload as new revision (supersede current)\nCancel = separate document`,
+          )
+          if (asRev) {
+            reviseDocumentId = match.id
+            matchTitle = match.title
+          }
+        }
+      } catch {
+        /* ignore match lookup failures during draft */
+      }
       next.push({
         key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
         file,
-        title: file.name.replace(/\.[^.]+$/, ''),
-        categoryId: cat?.id ?? batchCategoryId,
+        title,
+        categoryId,
         visibility: cat?.default_visibility ?? batchVisibility,
+        reviseDocumentId,
+        matchTitle,
       })
     }
     setItems((prev) => [...prev, ...next])
@@ -491,6 +603,7 @@ function ImportWizard({
           categoryId: i.categoryId,
           visibility: i.visibility,
           title: i.title,
+          reviseDocumentId: i.reviseDocumentId,
         })),
         (done, total, name) => setProgress(`${done}/${total} · ${name}`),
       )
@@ -526,14 +639,14 @@ function ImportWizard({
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()
-              addFiles(e.dataTransfer.files)
+              void addFiles(e.dataTransfer.files)
             }}
             onClick={() => inputRef.current?.click()}
           >
             <FileText className="mb-2 h-8 w-8 text-teal" />
             <p className="font-semibold text-ink">Drop files here or click to browse</p>
             <p className="mt-1 text-xs text-ink-muted">
-              PDF, Office, images, DWG, MP4 · up to {MAX_IMPORT_BATCH} files
+              PDF, Office, images, DWG, MP4 · up to {MAX_IMPORT_BATCH} files · matching titles can become revisions
             </p>
             <input
               ref={inputRef}
@@ -541,7 +654,7 @@ function ImportWizard({
               multiple
               className="hidden"
               onChange={(e) => {
-                addFiles(e.target.files)
+                void addFiles(e.target.files)
                 e.target.value = ''
               }}
             />
@@ -594,13 +707,20 @@ function ImportWizard({
                 <li key={item.key} className="grid gap-2 p-3 sm:grid-cols-12 sm:items-center">
                   <div className="sm:col-span-4">
                     <p className="truncate text-sm font-semibold">{item.file.name}</p>
-                    <p className="text-xs text-ink-muted">{formatFileSize(item.file.size)}</p>
+                    <p className="text-xs text-ink-muted">
+                      {formatFileSize(item.file.size)}
+                      {item.reviseDocumentId ? ' · new revision' : ''}
+                    </p>
                   </div>
                   <input
                     value={item.title}
                     onChange={(e) =>
                       setItems((prev) =>
-                        prev.map((i) => (i.key === item.key ? { ...i, title: e.target.value } : i)),
+                        prev.map((i) =>
+                          i.key === item.key
+                            ? { ...i, title: e.target.value, reviseDocumentId: null }
+                            : i,
+                        ),
                       )
                     }
                     className="h-9 rounded-md border border-border px-2 text-sm sm:col-span-3"
@@ -618,6 +738,7 @@ function ImportWizard({
                                 ...i,
                                 categoryId: id,
                                 visibility: cat?.default_visibility ?? i.visibility,
+                                reviseDocumentId: null,
                               }
                             : i,
                         ),
@@ -672,31 +793,45 @@ function ImportWizard({
 function DocumentDrawer({
   doc,
   canManage,
+  canPurge,
+  canHold,
   categories,
   previewUrl,
   events,
+  versions,
   onClose,
   onDownload,
   onTrash,
+  onArchive,
   onRestore,
   onSaved,
+  onRefreshSelected,
 }: {
   doc: LibraryDocument
   canManage: boolean
+  canPurge: boolean
+  canHold: boolean
   categories: DocumentCategory[]
   previewUrl: string | null
   events: DocumentEvent[]
+  versions: DocumentVersion[]
   onClose: () => void
-  onDownload: () => void
+  onDownload: (version?: DocumentVersion | null) => void
   onTrash: () => void
+  onArchive: () => void
   onRestore: () => void
   onSaved: () => Promise<void>
+  onRefreshSelected: () => Promise<void>
 }) {
   const [title, setTitle] = useState(doc.title)
   const [categoryId, setCategoryId] = useState(doc.category_id)
   const [visibility, setVisibility] = useState(doc.visibility)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [purgeOpen, setPurgeOpen] = useState(false)
+  const [purgeCheck, setPurgeCheck] = useState<PurgeCheck | null>(null)
+  const [purgeTyped, setPurgeTyped] = useState('')
+  const revInputRef = useRef<HTMLInputElement>(null)
   const mime = doc.current_version?.mime_type ?? ''
   const isImage = mime.startsWith('image/')
   const isPdf = mime === 'application/pdf'
@@ -713,6 +848,57 @@ function DocumentDrawer({
     }
   }
 
+  async function toggleHold() {
+    setSaving(true)
+    setError(null)
+    try {
+      await setDocumentLegalHold(doc.id, !doc.legal_hold)
+      await onRefreshSelected()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Hold update failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function openPurge() {
+    try {
+      const check = await getPurgeEligibility(doc.id)
+      setPurgeCheck(check)
+      setPurgeTyped('')
+      setPurgeOpen(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not check purge eligibility')
+    }
+  }
+
+  async function confirmPurge() {
+    setSaving(true)
+    setError(null)
+    try {
+      await purgeDocument(doc.id, purgeTyped, { includeAllRevisions: true })
+      setPurgeOpen(false)
+      await onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Purge failed')
+      setSaving(false)
+    }
+  }
+
+  async function onNewRevision(file: File | null) {
+    if (!file) return
+    setSaving(true)
+    setError(null)
+    try {
+      await uploadDocumentRevision({ documentId: doc.id, jobId: doc.job_id, file })
+      await onRefreshSelected()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Revision upload failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-ink/40">
       <div className="flex h-full w-full max-w-lg flex-col bg-surface shadow-xl">
@@ -720,6 +906,7 @@ function DocumentDrawer({
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-wider text-teal">
               {doc.category?.name ?? 'Document'}
+              {doc.legal_hold ? ' · Legal hold' : ''}
             </p>
             <h3 className="truncate font-display text-xl font-semibold text-ink">{doc.title}</h3>
           </div>
@@ -758,7 +945,71 @@ function DocumentDrawer({
                 {doc.current_version ? ` · ${formatFileSize(doc.current_version.size_bytes)}` : ''}
               </dd>
             </div>
+            {doc.retain_until && (
+              <div className="col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Retain until</dt>
+                <dd className="font-semibold">
+                  {doc.retain_until}
+                  {!isRetentionSatisfied(doc.retain_until) ? ' · purge blocked' : ' · eligible for purge'}
+                </dd>
+              </div>
+            )}
           </dl>
+
+          {canManage && versions.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                Revision history
+              </p>
+              <ul className="space-y-2 text-sm">
+                {versions.map((v) => (
+                  <li
+                    key={v.id}
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2',
+                      v.superseded_at && 'opacity-70',
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold">
+                        {v.rev_label}
+                        {v.id === doc.current_version_id ? ' · current' : ''}
+                        {v.superseded_at ? ' · superseded' : ''}
+                      </p>
+                      <p className="truncate text-xs text-ink-muted">
+                        {v.file_name_original} · {formatRelative(v.uploaded_at)}
+                      </p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => onDownload(v)}>
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {doc.status === 'active' && !doc.legal_hold && (
+                <div className="mt-2">
+                  <input
+                    ref={revInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      void onNewRevision(e.target.files?.[0] ?? null)
+                      e.target.value = ''
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => revInputRef.current?.click()}
+                  >
+                    Upload new revision
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {canManage && doc.status === 'active' && (
             <div className="space-y-3 rounded-xl border border-border p-3">
@@ -819,24 +1070,75 @@ function DocumentDrawer({
             </div>
           )}
 
+          {purgeOpen && purgeCheck && (
+            <div className="space-y-3 rounded-xl border border-rose/40 bg-rose-soft/40 p-3">
+              <p className="text-sm font-semibold text-rose">Permanent purge</p>
+              {!purgeCheck.ok ? (
+                <p className="text-sm text-ink">{purgeCheck.reasons.join('. ')}</p>
+              ) : (
+                <>
+                  <p className="text-sm text-ink-muted">
+                    Type the document title to confirm. This removes storage objects and keeps an audit
+                    tombstone.
+                  </p>
+                  <input
+                    value={purgeTyped}
+                    onChange={(e) => setPurgeTyped(e.target.value)}
+                    placeholder={purgeCheck.title}
+                    className="h-10 w-full rounded-md border border-border px-2 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    disabled={saving || purgeTyped.trim() !== purgeCheck.title.trim()}
+                    onClick={() => void confirmPurge()}
+                  >
+                    Purge forever
+                  </Button>
+                </>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={() => setPurgeOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
+
           {error && <p className="text-sm text-rose">{error}</p>}
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-          <Button type="button" size="sm" onClick={onDownload}>
+          <Button type="button" size="sm" onClick={() => onDownload()}>
             <Download className="h-4 w-4" />
             Download
           </Button>
-          {canManage && doc.status === 'active' && (
-            <Button type="button" variant="danger" size="sm" onClick={onTrash}>
-              <Trash2 className="h-4 w-4" />
-              Trash
+          {canHold && (
+            <Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => void toggleHold()}>
+              <Scale className="h-4 w-4" />
+              {doc.legal_hold ? 'Lift hold' : 'Legal hold'}
             </Button>
           )}
-          {canManage && doc.status === 'trashed' && (
+          {canManage && doc.status === 'active' && (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={onArchive}>
+                <Archive className="h-4 w-4" />
+                Archive
+              </Button>
+              <Button type="button" variant="danger" size="sm" onClick={onTrash}>
+                <Trash2 className="h-4 w-4" />
+                Trash
+              </Button>
+            </>
+          )}
+          {canManage && (doc.status === 'trashed' || doc.status === 'archived') && (
             <Button type="button" variant="outline" size="sm" onClick={onRestore}>
               <RotateCcw className="h-4 w-4" />
               Restore
+            </Button>
+          )}
+          {canPurge && doc.status === 'trashed' && (
+            <Button type="button" variant="danger" size="sm" onClick={() => void openPurge()}>
+              Purge
             </Button>
           )}
         </div>

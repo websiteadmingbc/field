@@ -10,9 +10,13 @@ import type {
 } from '../../types/documents'
 import {
   ALLOWED_DOCUMENT_MIME_TYPES,
+  JOB_COMPLETION_ARCHIVE_CODES,
   MAX_DOCUMENT_BYTES,
   MAX_IMPORT_BATCH,
+  addYearsToDate,
   guessCategoryCode,
+  isRetentionSatisfied,
+  nextRevLabel,
 } from '../../types/documents'
 
 const BUCKET = 'documents'
@@ -107,9 +111,10 @@ export async function fetchJobDocuments(
     .order('updated_at', { ascending: false })
 
   if (opts.fieldMode) {
+    // Current revision only (via current_version_id) — superseded versions never listed
     q = q.eq('status', 'active').in('visibility', ['crew', 'shared'])
   } else if (opts.status === 'all_managed') {
-    // active + trashed (+ archived when Phase 2 ships)
+    // active + archived + trashed
   } else if (opts.status) {
     q = q.eq('status', opts.status)
   } else {
@@ -303,48 +308,6 @@ export async function uploadJobDocument(input: UploadJobDocumentInput): Promise<
   }
 }
 
-export type BulkUploadItem = {
-  file: File
-  categoryId: string
-  visibility: DocumentVisibility
-  title?: string
-}
-
-export async function uploadJobDocumentsBatch(
-  jobId: string,
-  jobNumber: string,
-  items: BulkUploadItem[],
-  onProgress?: (done: number, total: number, fileName: string) => void,
-): Promise<{ uploaded: LibraryDocument[]; errors: { fileName: string; message: string }[] }> {
-  if (items.length > MAX_IMPORT_BATCH) {
-    throw new Error(`Batch limited to ${MAX_IMPORT_BATCH} files`)
-  }
-  const uploaded: LibraryDocument[] = []
-  const errors: { fileName: string; message: string }[] = []
-  let done = 0
-  for (const item of items) {
-    try {
-      const doc = await uploadJobDocument({
-        jobId,
-        jobNumber,
-        categoryId: item.categoryId,
-        visibility: item.visibility,
-        title: item.title,
-        file: item.file,
-      })
-      uploaded.push(doc)
-    } catch (e) {
-      errors.push({
-        fileName: item.file.name,
-        message: e instanceof Error ? e.message : 'Upload failed',
-      })
-    }
-    done += 1
-    onProgress?.(done, items.length, item.file.name)
-  }
-  return { uploaded, errors }
-}
-
 export async function updateDocumentMetadata(
   documentId: string,
   patch: Partial<Pick<LibraryDocument, 'title' | 'category_id' | 'visibility' | 'doc_number' | 'tags'>>,
@@ -367,7 +330,22 @@ export async function updateDocumentMetadata(
   return withVersion
 }
 
+async function assertNotOnLegalHold(documentId: string) {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('documents')
+    .select('legal_hold, title')
+    .eq('id', documentId)
+    .single()
+  if (error) throw error
+  if (data?.legal_hold) {
+    throw new Error(`“${data.title}” is on legal hold. Lift the hold before archiving or trashing.`)
+  }
+}
+
 export async function trashDocument(documentId: string): Promise<void> {
+  await assertNotOnLegalHold(documentId)
   const supabase = getSupabase()
   if (!supabase) throw new Error('Supabase not configured')
   const { error } = await supabase
@@ -376,6 +354,18 @@ export async function trashDocument(documentId: string): Promise<void> {
     .eq('id', documentId)
   if (error) throw error
   await logDocumentEvent({ documentId, action: 'trash' })
+}
+
+export async function archiveDocument(documentId: string): Promise<void> {
+  await assertNotOnLegalHold(documentId)
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { error } = await supabase
+    .from('documents')
+    .update({ status: 'archived', archived_at: new Date().toISOString() })
+    .eq('id', documentId)
+  if (error) throw error
+  await logDocumentEvent({ documentId, action: 'archive' })
 }
 
 export async function restoreDocument(documentId: string): Promise<void> {
@@ -387,6 +377,339 @@ export async function restoreDocument(documentId: string): Promise<void> {
     .eq('id', documentId)
   if (error) throw error
   await logDocumentEvent({ documentId, action: 'restore' })
+}
+
+export async function setDocumentLegalHold(documentId: string, hold: boolean): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { error } = await supabase
+    .from('documents')
+    .update({ legal_hold: hold })
+    .eq('id', documentId)
+  if (error) throw error
+  await logDocumentEvent({
+    documentId,
+    action: hold ? 'hold_on' : 'hold_off',
+  })
+}
+
+export type PurgeCheck = {
+  ok: boolean
+  reasons: string[]
+  title: string
+  retainUntil: string | null
+  legalHold: boolean
+  versionCount: number
+}
+
+export async function getPurgeEligibility(documentId: string): Promise<PurgeCheck> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data: doc, error } = await supabase
+    .from('documents')
+    .select('id, title, legal_hold, retain_until, status')
+    .eq('id', documentId)
+    .single()
+  if (error) throw error
+  const { count } = await supabase
+    .from('document_versions')
+    .select('id', { count: 'exact', head: true })
+    .eq('document_id', documentId)
+
+  const reasons: string[] = []
+  if (doc.legal_hold) reasons.push('Document is on legal hold')
+  if (!isRetentionSatisfied(doc.retain_until)) {
+    reasons.push(`Retention ends ${doc.retain_until} — purge blocked until then`)
+  }
+  return {
+    ok: reasons.length === 0,
+    reasons,
+    title: doc.title,
+    retainUntil: doc.retain_until,
+    legalHold: doc.legal_hold,
+    versionCount: count ?? 0,
+  }
+}
+
+/** Permanent delete. Owner/Admin only (enforced by RLS delete + app gate). Keeps audit tombstone. */
+export async function purgeDocument(
+  documentId: string,
+  confirmTitle: string,
+  opts?: { includeAllRevisions?: boolean },
+): Promise<void> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+
+  const check = await getPurgeEligibility(documentId)
+  if (confirmTitle.trim() !== check.title.trim()) {
+    throw new Error('Type the exact document title to confirm purge')
+  }
+  if (!check.ok) {
+    throw new Error(check.reasons.join('. '))
+  }
+
+  const { data: versions, error: verErr } = await supabase
+    .from('document_versions')
+    .select('id, storage_path, file_name_original, sha256, rev_label')
+    .eq('document_id', documentId)
+  if (verErr) throw verErr
+
+  const paths = (versions ?? []).map((v) => v.storage_path).filter(Boolean)
+  if (paths.length > 0) {
+    await supabase.storage.from(BUCKET).remove(paths)
+  }
+
+  await logDocumentEvent({
+    documentId,
+    action: 'purge',
+    details: {
+      title: check.title,
+      versions: versions ?? [],
+      include_all_revisions: opts?.includeAllRevisions !== false,
+      tombstone: true,
+    },
+  })
+
+  const { error } = await supabase.from('documents').delete().eq('id', documentId)
+  if (error) throw error
+}
+
+export async function fetchDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const { data, error } = await supabase
+    .from('document_versions')
+    .select('*')
+    .eq('document_id', documentId)
+    .order('uploaded_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as DocumentVersion[]
+}
+
+export async function findMatchingDocument(input: {
+  jobId: string
+  categoryId: string
+  title: string
+}): Promise<LibraryDocument | null> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const title = input.title.trim()
+  const { data, error } = await supabase
+    .from('documents')
+    .select(`*, document_categories (*)`)
+    .eq('job_id', input.jobId)
+    .eq('category_id', input.categoryId)
+    .eq('status', 'active')
+    .eq('title', title)
+    .limit(1)
+  if (error) throw error
+  if (!data?.[0]) return null
+  const [row] = await attachVersions([mapDocument(data[0] as LibraryDocumentRow)])
+  return row
+}
+
+export async function uploadDocumentRevision(input: {
+  documentId: string
+  jobId: string
+  file: File
+}): Promise<LibraryDocument> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+
+  if (input.file.size > MAX_DOCUMENT_BYTES) {
+    throw new Error(`File exceeds ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MB limit`)
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Sign in required')
+
+  const { data: doc, error: docErr } = await supabase
+    .from('documents')
+    .select('id, current_version_id, job_id, legal_hold')
+    .eq('id', input.documentId)
+    .single()
+  if (docErr) throw docErr
+  if (doc.legal_hold) throw new Error('Document is on legal hold — cannot upload a new revision')
+
+  let currentRev = 'R0'
+  if (doc.current_version_id) {
+    const { data: cur } = await supabase
+      .from('document_versions')
+      .select('id, rev_label')
+      .eq('id', doc.current_version_id)
+      .maybeSingle()
+    if (cur?.rev_label) currentRev = cur.rev_label
+  }
+
+  const revLabel = nextRevLabel(currentRev)
+  const versionId = crypto.randomUUID()
+  const mime = input.file.type || 'application/octet-stream'
+  const sha256 = await sha256Hex(input.file)
+  const storagePath = `jobs/${input.jobId}/${input.documentId}/${versionId}/${safeFileName(input.file.name)}`
+
+  const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, input.file, {
+    upsert: false,
+    contentType: mime,
+  })
+  if (upErr) throw upErr
+
+  if (doc.current_version_id) {
+    await supabase
+      .from('document_versions')
+      .update({ superseded_at: new Date().toISOString() })
+      .eq('id', doc.current_version_id)
+  }
+
+  const { data: version, error: verErr } = await supabase
+    .from('document_versions')
+    .insert({
+      id: versionId,
+      document_id: input.documentId,
+      rev_label: revLabel,
+      storage_path: storagePath,
+      file_name_original: input.file.name,
+      mime_type: mime,
+      size_bytes: input.file.size,
+      sha256,
+      scan_status: 'available',
+      uploaded_by: user.id,
+    })
+    .select('*')
+    .single()
+  if (verErr) {
+    await supabase.storage.from(BUCKET).remove([storagePath])
+    throw verErr
+  }
+
+  const { data: updated, error: updErr } = await supabase
+    .from('documents')
+    .update({ current_version_id: version.id, status: 'active', archived_at: null, trashed_at: null })
+    .eq('id', input.documentId)
+    .select(`*, document_categories (*)`)
+    .single()
+  if (updErr) throw updErr
+
+  await logDocumentEvent({
+    documentId: input.documentId,
+    versionId: version.id,
+    action: 'upload',
+    details: { revision: revLabel, superseded_previous: currentRev, file_name: input.file.name },
+  })
+
+  return {
+    ...mapDocument(updated as LibraryDocumentRow),
+    current_version: version as DocumentVersion,
+  }
+}
+
+export type BulkUploadItem = {
+  file: File
+  categoryId: string
+  visibility: DocumentVisibility
+  title?: string
+  /** When set, upload as a new revision of this document instead of creating a new one */
+  reviseDocumentId?: string | null
+}
+
+export async function uploadJobDocumentsBatch(
+  jobId: string,
+  jobNumber: string,
+  items: BulkUploadItem[],
+  onProgress?: (done: number, total: number, fileName: string) => void,
+): Promise<{ uploaded: LibraryDocument[]; errors: { fileName: string; message: string }[] }> {
+  if (items.length > MAX_IMPORT_BATCH) {
+    throw new Error(`Batch limited to ${MAX_IMPORT_BATCH} files`)
+  }
+  const uploaded: LibraryDocument[] = []
+  const errors: { fileName: string; message: string }[] = []
+  let done = 0
+  for (const item of items) {
+    try {
+      const doc = item.reviseDocumentId
+        ? await uploadDocumentRevision({
+            documentId: item.reviseDocumentId,
+            jobId,
+            file: item.file,
+          })
+        : await uploadJobDocument({
+            jobId,
+            jobNumber,
+            categoryId: item.categoryId,
+            visibility: item.visibility,
+            title: item.title,
+            file: item.file,
+          })
+      uploaded.push(doc)
+    } catch (e) {
+      errors.push({
+        fileName: item.file.name,
+        message: e instanceof Error ? e.message : 'Upload failed',
+      })
+    }
+    done += 1
+    onProgress?.(done, items.length, item.file.name)
+  }
+  return { uploaded, errors }
+}
+
+/** Set retain_until from category retention years + completion date; optionally archive working docs. */
+export async function onJobCompletedDocuments(
+  jobId: string,
+  opts?: { archiveWorking?: boolean; completedOn?: string },
+): Promise<{ retentionUpdated: number; archived: number }> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase not configured')
+  const completedOn = opts?.completedOn ?? new Date().toISOString().slice(0, 10)
+
+  const { data: docs, error } = await supabase
+    .from('documents')
+    .select(`id, status, legal_hold, category_id, document_categories ( code, retention_years )`)
+    .eq('job_id', jobId)
+    .in('status', ['active', 'archived'])
+  if (error) throw error
+
+  let retentionUpdated = 0
+  let archived = 0
+
+  for (const row of (docs ?? []) as Array<{
+    id: string
+    status: DocumentStatus
+    legal_hold: boolean
+    document_categories: { code: string; retention_years: number } | { code: string; retention_years: number }[] | null
+  }>) {
+    const cat = unwrapOne(row.document_categories)
+    if (!cat) continue
+    const retainUntil = addYearsToDate(completedOn, cat.retention_years)
+    const { error: retErr } = await supabase
+      .from('documents')
+      .update({ retain_until: retainUntil })
+      .eq('id', row.id)
+    if (!retErr) retentionUpdated += 1
+
+    if (
+      opts?.archiveWorking &&
+      row.status === 'active' &&
+      !row.legal_hold &&
+      (JOB_COMPLETION_ARCHIVE_CODES as readonly string[]).includes(cat.code)
+    ) {
+      const { error: archErr } = await supabase
+        .from('documents')
+        .update({ status: 'archived', archived_at: new Date().toISOString() })
+        .eq('id', row.id)
+      if (!archErr) {
+        archived += 1
+        await logDocumentEvent({
+          documentId: row.id,
+          action: 'archive',
+          details: { reason: 'job_completed_working_docs' },
+        })
+      }
+    }
+  }
+
+  return { retentionUpdated, archived }
 }
 
 export async function getDocumentSignedUrl(storagePath: string): Promise<string | null> {

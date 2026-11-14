@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Archive, ArrowLeft, Trash2 } from 'lucide-react'
 import { JobDocumentsPanel } from '../../components/documents/JobDocumentsPanel'
+import { onJobCompletedDocuments } from '../../lib/supabase/documents'
+import { useAuth } from '../../context/AuthContext'
+import { canPurgeDocuments, canSetDocumentLegalHold } from '../../types/auth'
 import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -45,6 +48,9 @@ export function AdminProjectFormPage() {
   const isNew = !projectId || projectId === 'new'
   const navigate = useNavigate()
   const { refreshRemote, remote, data } = useApp()
+  const { profile } = useAuth()
+  const purgeDocs = canPurgeDocuments(profile?.app_role)
+  const holdDocs = canSetDocumentLegalHold(profile?.app_role)
 
   const [tab, setTab] = useState<Tab>('details')
   const [form, setForm] = useState<ProjectInput>(emptyProjectInput())
@@ -65,6 +71,7 @@ export function AdminProjectFormPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<JobPhoto | null>(null)
+  const [statusAtLoad, setStatusAtLoad] = useState<ProjectInput['status'] | null>(null)
 
   const projectPhotos = useMemo(
     () =>
@@ -97,7 +104,9 @@ export function AdminProjectFormPage() {
         fetchProfiles(),
       ])
       if (!project) throw new Error('Job not found')
-      setForm(projectToInput(project))
+      const input = projectToInput(project)
+      setForm(input)
+      setStatusAtLoad(input.status)
       setAssignedIds(assignments.map((a) => a.user_id))
       setAssignmentRoles(
         Object.fromEntries(assignments.map((a) => [a.user_id, a.assignment_role])),
@@ -161,7 +170,22 @@ export function AdminProjectFormPage() {
       } else if (projectId) {
         await updateProject(projectId, payload)
         if (remote) await refreshRemote()
-        setNotice('Job saved.')
+        let extra = ''
+        if (payload.status === 'completed' && statusAtLoad !== 'completed') {
+          const archiveWorking = confirm(
+            'Job marked completed. Set retention on documents and archive working docs (RFIs, submittals, logs, correspondence, photos)? Closeout and drawings stay active.',
+          )
+          try {
+            const result = await onJobCompletedDocuments(projectId, { archiveWorking })
+            extra = archiveWorking
+              ? ` Retention set on ${result.retentionUpdated}; archived ${result.archived} working docs.`
+              : ` Retention set on ${result.retentionUpdated} docs.`
+          } catch (docErr) {
+            extra = ` Document retention failed: ${docErr instanceof Error ? docErr.message : 'error'}`
+          }
+        }
+        setStatusAtLoad(payload.status)
+        setNotice(`Job saved.${extra}`)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -731,6 +755,8 @@ export function AdminProjectFormPage() {
           jobNumber={form.job_number}
           jobName={form.name}
           canManage
+          canPurge={purgeDocs}
+          canHold={holdDocs}
         />
       )}
 
