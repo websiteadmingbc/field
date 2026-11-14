@@ -259,13 +259,16 @@ const SECTIONS: HelpSection[] = [
     adminOnly: true,
     steps: [
       'Open Operations → All Jobs → a job → Documents tab (or open the job from My Jobs).',
-      'Import, revise, archive, search, and export (CSV / ZIP / Closeout).',
+      'Import, revise, archive, search, and export (CSV / ZIP / Closeout). New uploads default to Internal (office only).',
+      'To show a file in the field, set visibility to Crew (assigned crew) or Shared (named people).',
       'Share individual docs with named subcontractors (Shared visibility).',
-      'Link docs to daily logs or RFI/CO references. Field users can Pin for offline.',
+      'Link docs to daily logs or RFI/CO references. Field users can Pin Crew/Shared docs for offline.',
       'Assigned subcontractors upload Submittals only — they do not see Internal docs.',
     ],
     tips: [
+      'Internal-first protects customer job files under California need-to-know (CCPA/CPRA-oriented access limits).',
       'There is no global Documents sidebar — documents always live on a job.',
+      'Files are not publicly linkable; downloads use short-lived signed URLs from a private storage bucket.',
       'Pinned files stay on the device for weak-signal sites (plans & permits).',
       'Submittal uploads require the person to be assigned to the job with app role Subcontractor.',
       'Shared docs are visible only to people you explicitly share with (plus managers).',
@@ -326,11 +329,12 @@ const SECTIONS: HelpSection[] = [
   {
     id: 'privacy',
     title: 'Privacy & trust',
-    summary: 'No employee tracking; location stays optional.',
+    summary: 'No employee tracking; customer documents stay Internal-first.',
     icon: Shield,
     body: [
       'Britton Field is built for contractors — not to monitor them. There is no continuous GPS tracking, geofencing, or hidden usage monitoring.',
       'Daily logs document the job. Job addresses are site info; directions open in your maps app when you choose.',
+      'Customer job documents default to Internal (office only). Crew and Shared are explicit opt-in, aligned with California need-to-know access for personal and confidential project information.',
     ],
     related: [{ label: 'Privacy', to: '/privacy' }],
   },

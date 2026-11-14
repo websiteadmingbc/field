@@ -78,9 +78,9 @@ export type DocumentEvent = {
 }
 
 export const DOCUMENT_VISIBILITY_LABELS: Record<DocumentVisibility, string> = {
-  internal: 'Internal',
-  crew: 'Crew',
-  shared: 'Shared',
+  internal: 'Internal (office only)',
+  crew: 'Crew (assigned to job)',
+  shared: 'Shared (named people)',
 }
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {

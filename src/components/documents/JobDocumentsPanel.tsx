@@ -710,9 +710,17 @@ export function JobDocumentsPanel({
           categories={categories}
           submittalOnly={canUploadSubmittals && !canManage}
           onClose={() => setImportOpen(false)}
-          onDone={async () => {
+          onDone={async (result) => {
             setImportOpen(false)
             await load()
+            if (result?.hadInternal) {
+              pushNotification({
+                type: 'note',
+                title: 'Documents saved as Internal',
+                body: 'Office only for now. Mark Crew or Shared on a file to show it in the field.',
+                jobId,
+              })
+            }
           }}
         />
       )}
@@ -769,14 +777,15 @@ function ImportWizard({
   categories: DocumentCategory[]
   submittalOnly?: boolean
   onClose: () => void
-  onDone: () => Promise<void>
+  onDone: (result?: { hadInternal?: boolean }) => Promise<void>
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const subCat = categories.find((c) => c.code === 'SUB') ?? categories[0]
   const [items, setItems] = useState<DraftItem[]>([])
   const [batchCategoryId, setBatchCategoryId] = useState(submittalOnly ? subCat?.id ?? '' : categories[0]?.id ?? '')
+  // Internal-first: never inherit legacy Crew category defaults for new uploads.
   const [batchVisibility, setBatchVisibility] = useState<DocumentVisibility>(
-    submittalOnly ? 'shared' : categories[0]?.default_visibility ?? 'internal',
+    submittalOnly ? 'shared' : 'internal',
   )
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState('')
@@ -813,7 +822,7 @@ function ImportWizard({
         file,
         title,
         categoryId,
-        visibility: submittalOnly ? 'shared' : cat?.default_visibility ?? batchVisibility,
+        visibility: submittalOnly ? 'shared' : batchVisibility || 'internal',
         reviseDocumentId,
         matchTitle,
       })
@@ -822,12 +831,11 @@ function ImportWizard({
   }
 
   function applyBatchDefaults() {
-    const cat = categories.find((c) => c.id === batchCategoryId)
     setItems((prev) =>
       prev.map((i) => ({
         ...i,
         categoryId: batchCategoryId || i.categoryId,
-        visibility: batchVisibility || cat?.default_visibility || i.visibility,
+        visibility: batchVisibility || 'internal',
       })),
     )
   }
@@ -852,10 +860,12 @@ function ImportWizard({
       if (errors.length) {
         setError(errors.map((e) => `${e.fileName}: ${e.message}`).join('\n'))
         setUploading(false)
-        if (errors.length < items.length) await onDone()
+        if (errors.length < items.length) await onDone({ hadInternal: items.some((i) => i.visibility === 'internal') })
         return
       }
-      await onDone()
+      await onDone({
+        hadInternal: !submittalOnly && items.some((i) => i.visibility === 'internal'),
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed')
       setUploading(false)
@@ -913,10 +923,8 @@ function ImportWizard({
                 <select
                   value={batchCategoryId}
                   onChange={(e) => {
-                    const id = e.target.value
-                    setBatchCategoryId(id)
-                    const cat = categories.find((c) => c.id === id)
-                    if (cat) setBatchVisibility(cat.default_visibility)
+                    setBatchCategoryId(e.target.value)
+                    // Keep Internal default; office opts into Crew/Shared explicitly.
                   }}
                   className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-2"
                 >
@@ -946,6 +954,10 @@ function ImportWizard({
                   Apply to all
                 </Button>
               </div>
+              <p className="text-xs text-ink-muted sm:col-span-3">
+                New files default to Internal (office only). Mark Crew or Shared to show in the
+                field — California need-to-know for customer job documents.
+              </p>
             </div>
           )}
           {submittalOnly && (
@@ -984,14 +996,12 @@ function ImportWizard({
                     value={item.categoryId}
                     onChange={(e) => {
                       const id = e.target.value
-                      const cat = categories.find((c) => c.id === id)
                       setItems((prev) =>
                         prev.map((i) =>
                           i.key === item.key
                             ? {
                                 ...i,
                                 categoryId: id,
-                                visibility: cat?.default_visibility ?? i.visibility,
                                 reviseDocumentId: null,
                               }
                             : i,
@@ -1312,6 +1322,9 @@ function DocumentDrawer({
                   ))}
                 </select>
               </label>
+              <p className="text-xs text-ink-muted">
+                Internal = office only. Crew = assigned job crew. Shared = named people only.
+              </p>
               <Button type="button" size="sm" disabled={saving} onClick={() => void saveMeta()}>
                 Save metadata
               </Button>

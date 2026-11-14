@@ -40,12 +40,12 @@ export function PrivacyPage() {
         <Principle
           icon={<FileText className="h-5 w-5" />}
           title="Job documents stay controlled"
-          body="Contracts, drawings, permits, and other job files live in a private Document Library on each job. Access follows your app role and job assignment. Sensitive categories default to Internal. Soft delete goes to Trash first; permanent purge (later phase) requires Owner confirmation and retention checks. Downloads use short-lived signed links."
+          body="Contracts, drawings, permits, and other customer job files live in a private Document Library on each job — not on a public web URL. Every new file defaults to Internal (office only). Field crew and named people see a file only after Operations marks it Crew or Shared. Access follows your app role and job assignment. Soft delete goes to Trash first; permanent purge requires Owner confirmation and retention checks. Downloads use short-lived signed links."
         />
         <Principle
           icon={<Shield className="h-5 w-5" />}
           title="What is saved"
-          body="When connected to the company workspace, job details, logs, photos, and Document Library files are stored in Great Britton’s secured Supabase project. Demo mode may still keep sample data only on this device."
+          body="When connected to the company workspace, job details, logs, photos, and Document Library files are stored in Great Britton’s secured Supabase project (encryption in transit; private storage at rest). California-oriented practice: limit who can see personal and confidential project information, and keep need-to-know access. Demo mode may still keep sample data only on this device."
         />
       </Card>
 
