@@ -21,6 +21,7 @@ const icons: Record<NotificationType, typeof Bell> = {
   schedule: Calendar,
   materials: Package,
   note: Bell,
+  export: Package,
 }
 
 export function NotificationsPage() {

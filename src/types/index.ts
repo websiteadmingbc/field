@@ -16,6 +16,7 @@ export type NotificationType =
   | 'schedule'
   | 'materials'
   | 'note'
+  | 'export'
 
 export interface Contact {
   id: string

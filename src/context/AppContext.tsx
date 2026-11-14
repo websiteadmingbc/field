@@ -52,6 +52,7 @@ interface AppContextValue {
   }) => Promise<string>
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
+  pushNotification: (input: Omit<AppNotification, 'id' | 'createdAt' | 'read'> & { id?: string }) => void
   resetDemo: () => Promise<void>
   refreshRemote: () => Promise<void>
 }
@@ -452,6 +453,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }, [persist])
 
+  const pushNotification = useCallback(
+    (input: Omit<AppNotification, 'id' | 'createdAt' | 'read'> & { id?: string }) => {
+      const notif: AppNotification = {
+        id: input.id ?? uid('notif'),
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        jobId: input.jobId,
+        createdAt: new Date().toISOString(),
+        read: false,
+      }
+      persist((prev) => ({
+        ...prev,
+        notifications: [notif, ...prev.notifications],
+      }))
+    },
+    [persist],
+  )
+
   const resetDemo = useCallback(async () => {
     if (remote) return
     const fresh = await resetDemoData()
@@ -476,6 +496,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addPhoto,
     markNotificationRead,
     markAllNotificationsRead,
+    pushNotification,
     resetDemo,
     refreshRemote,
   }

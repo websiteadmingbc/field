@@ -4,6 +4,7 @@ import {
   Download,
   FileText,
   Filter,
+  Package,
   Plus,
   RefreshCw,
   Search,
@@ -13,6 +14,13 @@ import {
   Eye,
   Scale,
 } from 'lucide-react'
+import { useApp } from '../../context/AppContext'
+import {
+  documentsToMetadataCsv,
+  downloadCloseoutPackage,
+  downloadDocumentsZip,
+  downloadTextFile,
+} from '../../lib/documents/exportLibrary'
 import { Button } from '../ui/Button'
 import { Card, SectionHeader } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
@@ -89,6 +97,7 @@ export function JobDocumentsPanel({
   canHold = false,
 }: Props) {
   const remote = isSupabaseConfigured()
+  const { pushNotification } = useApp()
   const [categories, setCategories] = useState<DocumentCategory[]>([])
   const [docs, setDocs] = useState<LibraryDocument[]>([])
   const [loading, setLoading] = useState(true)
@@ -101,6 +110,9 @@ export function JobDocumentsPanel({
   const [events, setEvents] = useState<DocumentEvent[]>([])
   const [versions, setVersions] = useState<DocumentVersion[]>([])
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [exportProgress, setExportProgress] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   const load = useCallback(async () => {
     if (!remote) {
@@ -171,6 +183,98 @@ export function JobDocumentsPanel({
       (a, b) => (a.category?.sort_order ?? 999) - (b.category?.sort_order ?? 999),
     )
   }, [docs])
+
+  const checkedDocs = useMemo(
+    () => docs.filter((d) => checkedIds.has(d.id)),
+    [docs, checkedIds],
+  )
+
+  function toggleChecked(id: string) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleCheckAll() {
+    if (checkedIds.size === docs.length) setCheckedIds(new Set())
+    else setCheckedIds(new Set(docs.map((d) => d.id)))
+  }
+
+  async function runExport(
+    label: string,
+    work: () => Promise<{ fileName: string; count: number } | void>,
+  ) {
+    setExporting(true)
+    setExportProgress('Starting…')
+    setError(null)
+    try {
+      const result = await work()
+      const body = result
+        ? `Downloaded ${result.fileName} (${result.count} file${result.count === 1 ? '' : 's'}).`
+        : 'Export complete.'
+      pushNotification({
+        type: 'export',
+        title: `${label} ready`,
+        body,
+        jobId,
+      })
+      setExportProgress(null)
+      setCheckedIds(new Set())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Export failed')
+      setExportProgress(null)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function onExportZip() {
+    const targets = checkedDocs.length > 0 ? checkedDocs : docs
+    if (targets.length === 0) {
+      setError('No documents to export')
+      return
+    }
+    await runExport('ZIP export', () =>
+      downloadDocumentsZip({
+        docs: targets,
+        jobNumber,
+        packageLabel: checkedDocs.length > 0 ? 'Selection' : 'Library',
+        onProgress: (done, total, name) => setExportProgress(`${done}/${total} · ${name}`),
+      }),
+    )
+  }
+
+  async function onExportCsv() {
+    const targets = checkedDocs.length > 0 ? checkedDocs : docs
+    if (targets.length === 0) {
+      setError('No documents to export')
+      return
+    }
+    const stamp = new Date().toISOString().slice(0, 10)
+    downloadTextFile(
+      documentsToMetadataCsv(targets),
+      `${jobNumber}_documents_${stamp}.csv`,
+    )
+    pushNotification({
+      type: 'export',
+      title: 'CSV export ready',
+      body: `Exported metadata for ${targets.length} document${targets.length === 1 ? '' : 's'}.`,
+      jobId,
+    })
+  }
+
+  async function onCloseoutPackage() {
+    await runExport('Closeout package', () =>
+      downloadCloseoutPackage({
+        jobId,
+        jobNumber,
+        onProgress: (done, total, name) => setExportProgress(`${done}/${total} · ${name}`),
+      }),
+    )
+  }
 
   async function onTrash(doc: LibraryDocument) {
     if (doc.legal_hold) {
@@ -265,6 +369,35 @@ export function JobDocumentsPanel({
                 <option value="archived">Archived</option>
                 <option value="trashed">Trash</option>
               </select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={exporting || docs.length === 0}
+                onClick={() => void onExportCsv()}
+              >
+                CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={exporting || docs.length === 0}
+                onClick={() => void onExportZip()}
+              >
+                <Download className="h-4 w-4" />
+                ZIP
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={exporting}
+                onClick={() => void onCloseoutPackage()}
+              >
+                <Package className="h-4 w-4" />
+                Closeout
+              </Button>
               <Button type="button" size="sm" onClick={() => setImportOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Import
@@ -274,6 +407,36 @@ export function JobDocumentsPanel({
         </div>
       </div>
 
+      {canManage && (checkedIds.size > 0 || exportProgress) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gold-line/40 bg-teal-soft/30 px-3 py-2 text-sm">
+          {checkedIds.size > 0 && (
+            <span className="font-semibold text-ink">{checkedIds.size} selected</span>
+          )}
+          {exportProgress && <span className="text-ink-muted">{exportProgress}</span>}
+          {checkedIds.size > 0 && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={exporting}
+                onClick={() => void onExportZip()}
+              >
+                Export ZIP
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setCheckedIds(new Set())}
+              >
+                Clear
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
       {canManage && (
         <div className="flex flex-wrap gap-2">
           <div className="relative min-w-[180px] flex-1">
@@ -281,10 +444,19 @@ export function JobDocumentsPanel({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search title, tags…"
+              placeholder="Search title, tags, file text…"
               className="h-10 w-full rounded-md border border-border bg-surface-raised pl-10 pr-3 text-sm outline-none focus:border-gold-line"
             />
           </div>
+          {docs.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleCheckAll}
+              className="h-10 rounded-md border border-border bg-surface-raised px-3 text-xs font-semibold uppercase tracking-wide text-ink-muted"
+            >
+              {checkedIds.size === docs.length ? 'Unselect all' : 'Select all'}
+            </button>
+          )}
           <label className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
             <Filter className="h-3.5 w-3.5" />
             <select
@@ -386,6 +558,15 @@ export function JobDocumentsPanel({
                     key={d.id}
                     className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-teal-soft/20"
                   >
+                    <label className="flex shrink-0 items-center">
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(d.id)}
+                        onChange={() => toggleChecked(d.id)}
+                        className="h-4 w-4 accent-teal"
+                        aria-label={`Select ${d.title}`}
+                      />
+                    </label>
                     <button
                       type="button"
                       className="min-w-0 flex-1 text-left"

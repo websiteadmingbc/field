@@ -63,6 +63,22 @@ function titleFromFileName(name: string): string {
   return name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || name
 }
 
+/** Best-effort text for search (Phase 3). PDF OCR/full extract arrives via edge later. */
+async function extractSearchableText(file: File): Promise<string | null> {
+  const name = file.name.toLowerCase()
+  const textLike =
+    file.type.startsWith('text/') ||
+    /\.(txt|csv|md|json|log)$/i.test(name) ||
+    file.type === 'application/json'
+  if (!textLike) return null
+  try {
+    const text = await file.text()
+    return text.slice(0, 120_000)
+  } catch {
+    return null
+  }
+}
+
 export async function fetchDocumentCategories(scope: 'job' | 'company' = 'job') {
   const supabase = getSupabase()
   if (!supabase) throw new Error('Supabase not configured')
@@ -135,11 +151,28 @@ export async function fetchJobDocuments(
 
   const query = opts.query?.trim().toLowerCase()
   if (query) {
+    // Also search extracted_text on any version for this job's docs
+    const docIds = rows.map((r) => r.id)
+    let textHits = new Set<string>()
+    if (docIds.length > 0) {
+      const { data: textRows } = await supabase
+        .from('document_versions')
+        .select('document_id, extracted_text, file_name_original')
+        .in('document_id', docIds)
+      for (const row of (textRows ?? []) as Array<{
+        document_id: string
+        extracted_text: string | null
+        file_name_original: string
+      }>) {
+        const hay = `${row.extracted_text ?? ''} ${row.file_name_original}`.toLowerCase()
+        if (hay.includes(query)) textHits.add(row.document_id)
+      }
+    }
     rows = rows.filter((d) => {
       const hay = `${d.title} ${d.doc_number} ${(d.tags ?? []).join(' ')} ${d.category?.name ?? ''} ${
         d.current_version?.file_name_original ?? ''
-      }`.toLowerCase()
-      return hay.includes(query)
+      } ${d.current_version?.extracted_text ?? ''}`.toLowerCase()
+      return hay.includes(query) || textHits.has(d.id)
     })
   }
 
@@ -230,6 +263,7 @@ export async function uploadJobDocument(input: UploadJobDocumentInput): Promise<
 
   const title = (input.title?.trim() || titleFromFileName(input.file.name)).slice(0, 200)
   const sha256 = await sha256Hex(input.file)
+  const extractedText = await extractSearchableText(input.file)
 
   const { data: doc, error: docErr } = await supabase
     .from('documents')
@@ -270,6 +304,7 @@ export async function uploadJobDocument(input: UploadJobDocumentInput): Promise<
       size_bytes: input.file.size,
       sha256,
       scan_status: 'available', // Phase 1: mark available; virus scan in later phase
+      extracted_text: extractedText,
       uploaded_by: user.id,
     })
     .select('*')
@@ -547,6 +582,7 @@ export async function uploadDocumentRevision(input: {
   const versionId = crypto.randomUUID()
   const mime = input.file.type || 'application/octet-stream'
   const sha256 = await sha256Hex(input.file)
+  const extractedText = await extractSearchableText(input.file)
   const storagePath = `jobs/${input.jobId}/${input.documentId}/${versionId}/${safeFileName(input.file.name)}`
 
   const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, input.file, {
@@ -574,6 +610,7 @@ export async function uploadDocumentRevision(input: {
       size_bytes: input.file.size,
       sha256,
       scan_status: 'available',
+      extracted_text: extractedText,
       uploaded_by: user.id,
     })
     .select('*')
