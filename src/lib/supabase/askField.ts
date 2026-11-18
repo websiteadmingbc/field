@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { getSupabase } from './client'
 
 export type AskFieldPresetId =
@@ -80,10 +81,7 @@ export async function askField(input: {
   }
 
   if (error) {
-    throw new Error(
-      error.message ||
-        'Ask Field failed. Deploy the ask-field Edge Function and set OPENAI_API_KEY.',
-    )
+    throw new Error(await messageFromFunctionsError(error))
   }
 
   if (!data?.answer) {
@@ -91,4 +89,32 @@ export async function askField(input: {
   }
 
   return data as AskFieldResult
+}
+
+async function messageFromFunctionsError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json()
+      if (body && typeof body === 'object' && 'error' in body && body.error) {
+        return String(body.error)
+      }
+      if (typeof body === 'string' && body.trim()) return body.trim()
+    } catch {
+      try {
+        const text = await error.context.text()
+        if (text.trim()) return text.trim().slice(0, 500)
+      } catch {
+        // fall through
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    if (/non-2xx/i.test(error.message)) {
+      return `${error.message}. Check OPENAI_API_KEY is set and the ask-field function is deployed.`
+    }
+    return error.message
+  }
+
+  return 'Ask Field failed. Deploy the ask-field Edge Function and set OPENAI_API_KEY.'
 }

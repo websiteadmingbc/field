@@ -32,7 +32,6 @@ export function AdminAskFieldPage() {
     setToolsUsed([])
     setModel(null)
     setActivePreset(preset)
-    setPrompt(trimmed)
     try {
       if (!isSupabaseConfigured()) {
         throw new Error('Ask Field needs a live Supabase connection (not demo mode).')
@@ -51,6 +50,7 @@ export function AdminAskFieldPage() {
   function onPreset(id: AskFieldPresetId) {
     const preset = ASK_FIELD_PRESETS.find((p) => p.id === id)
     if (!preset) return
+    // Presets run their own prompt; leave free-text empty so only placeholder shows.
     void runAsk(preset.prompt, id)
   }
 
@@ -97,10 +97,13 @@ export function AdminAskFieldPage() {
             Free-text ask
             <textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => {
+                setPrompt(e.target.value)
+                if (e.target.value.trim()) setActivePreset(null)
+              }}
               rows={4}
               className={areaClass}
-              placeholder="e.g. What’s on hold in San Francisco, and any customer communications we should follow up?"
+              placeholder="Type a question — e.g. What’s on hold in San Francisco, and any customer communications we should follow up?"
               disabled={loading}
             />
           </label>

@@ -32,7 +32,7 @@ const TOOL_DEFS = [
       name: 'field_summary',
       description:
         'Company-wide snapshot: project counts by status, active people, jobs scheduled today, recent notices.',
-      parameters: { type: 'object', properties: {}, additionalProperties: false },
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
@@ -51,7 +51,6 @@ const TOOL_DEFS = [
           search: { type: 'string' },
           limit: { type: 'integer', minimum: 1, maximum: 50 },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -66,7 +65,6 @@ const TOOL_DEFS = [
           job_number: { type: 'string' },
           project_id: { type: 'string' },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -82,7 +80,6 @@ const TOOL_DEFS = [
           active_only: { type: 'boolean' },
           limit: { type: 'integer', minimum: 1, maximum: 100 },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -98,7 +95,6 @@ const TOOL_DEFS = [
           job_number: { type: 'string' },
           limit: { type: 'integer', minimum: 1, maximum: 50 },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -113,7 +109,6 @@ const TOOL_DEFS = [
           project_id: { type: 'string' },
           limit: { type: 'integer', minimum: 1, maximum: 50 },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -129,7 +124,6 @@ const TOOL_DEFS = [
           job_number: { type: 'string' },
           limit: { type: 'integer', minimum: 1, maximum: 50 },
         },
-        additionalProperties: false,
       },
     },
   },
@@ -150,8 +144,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
-    const openaiKey = Deno.env.get('OPENAI_API_KEY')
-    const model = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini'
+    const openaiKey = (Deno.env.get('OPENAI_API_KEY') || '').trim()
+    const model = (Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini').trim()
 
     if (!openaiKey) {
       return json(
@@ -161,6 +155,10 @@ Deno.serve(async (req) => {
         },
         503,
       )
+    }
+
+    if (!anonKey) {
+      return json({ error: 'Edge Function missing SUPABASE_ANON_KEY' }, 500)
     }
 
     const authHeader = req.headers.get('Authorization')
@@ -173,7 +171,12 @@ Deno.serve(async (req) => {
       data: { user: caller },
       error: callerError,
     } = await callerClient.auth.getUser()
-    if (callerError || !caller) return json({ error: 'Unauthorized' }, 401)
+    if (callerError || !caller) {
+      return json(
+        { error: callerError?.message ? `Unauthorized: ${callerError.message}` : 'Unauthorized' },
+        401,
+      )
+    }
 
     const admin = createClient(supabaseUrl, serviceKey)
     const { data: callerProfile, error: profileError } = await admin
@@ -232,7 +235,14 @@ Deno.serve(async (req) => {
           } catch {
             args = {}
           }
-          const result = await runTool(admin, name, args)
+          let result: unknown
+          try {
+            result = await runTool(admin, name, args)
+          } catch (toolErr) {
+            result = {
+              error: toolErr instanceof Error ? toolErr.message : 'Tool failed',
+            }
+          }
           messages.push({
             role: 'tool',
             tool_call_id: call.id,
@@ -261,6 +271,7 @@ Deno.serve(async (req) => {
       asked_by: callerProfile.full_name,
     })
   } catch (err) {
+    console.error('ask-field error', err)
     return json({ error: err instanceof Error ? err.message : 'Unexpected error' }, 500)
   }
 })
@@ -361,7 +372,7 @@ async function toolListProjects(admin: SupabaseClient, args: Record<string, unkn
   let q = admin
     .from('projects')
     .select('id,job_number,name,client,status,scheduled_date,city,address,job_type,updated_at')
-    .order('scheduled_date', { ascending: true, nullsFirst: false })
+    .order('scheduled_date', { ascending: true })
     .limit(limit)
   if (typeof args.status === 'string' && args.status) q = q.eq('status', args.status)
   if (typeof args.search === 'string' && args.search.trim()) {

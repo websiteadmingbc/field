@@ -13,6 +13,7 @@ import {
   Phone,
   Plus,
 } from 'lucide-react'
+import { CustomerCommunicationViewModal } from '../components/CustomerCommunicationViewModal'
 import { JobDocumentsPanel } from '../components/documents/JobDocumentsPanel'
 import { LocationDetailsModal } from '../components/LocationDetailsModal'
 import { PhotoCapturePanel } from '../components/PhotoCapturePanel'
@@ -49,6 +50,7 @@ import {
 import type {
   CommunicationMessageType,
   CommunicationPriority,
+  CustomerCommunication,
   JobPhoto,
   JobStatus,
   MaterialStatus,
@@ -120,6 +122,7 @@ export function JobDetailPage() {
   const [materialQty, setMaterialQty] = useState('')
   const [lightbox, setLightbox] = useState<JobPhoto | null>(null)
   const [directionsOpen, setDirectionsOpen] = useState(false)
+  const [viewingComm, setViewingComm] = useState<CustomerCommunication | null>(null)
 
   const activity = useMemo(
     () =>
@@ -504,32 +507,49 @@ export function JobDetailPage() {
             </p>
           ) : (
             communications.map((c) => (
-              <div key={c.id} className="space-y-1 px-5 py-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="font-semibold text-ink">
-                    {c.recipientName}
-                    <span className="ml-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
-                      {COMM_PRIORITY_LABELS[c.priority]}
-                    </span>
+              <div
+                key={c.id}
+                className="flex flex-wrap items-start justify-between gap-3 px-5 py-4"
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-semibold text-ink">
+                      {c.recipientName}
+                      <span className="ml-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
+                        {COMM_PRIORITY_LABELS[c.priority]}
+                      </span>
+                    </p>
+                    <p className="text-xs text-ink-subtle">
+                      {formatShortDate(c.communicatedOn)}
+                      {c.communicatedAt
+                        ? ` · ${formatTime(c.communicatedAt.slice(0, 5))}`
+                        : ''}
+                    </p>
+                  </div>
+                  <p className="text-xs text-ink-muted">
+                    {COMM_MESSAGE_LABELS[c.messageType]}
+                    {c.deviceType ? ` · ${c.deviceType}` : ''}
+                    {' · From '}
+                    {c.senderName}
                   </p>
-                  <p className="text-xs text-ink-subtle">
-                    {formatShortDate(c.communicatedOn)}
-                    {c.communicatedAt
-                      ? ` · ${formatTime(c.communicatedAt.slice(0, 5))}`
-                      : ''}
-                  </p>
+                  <p className="whitespace-pre-wrap text-sm text-ink line-clamp-3">{c.body}</p>
                 </div>
-                <p className="text-xs text-ink-muted">
-                  {COMM_MESSAGE_LABELS[c.messageType]}
-                  {c.deviceType ? ` · ${c.deviceType}` : ''}
-                  {' · From '}
-                  {c.senderName}
-                </p>
-                <p className="text-sm text-ink line-clamp-3">{c.body}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setViewingComm(c)}
+                >
+                  View
+                </Button>
               </div>
             ))
           )}
         </Card>
+        <CustomerCommunicationViewModal
+          communication={viewingComm}
+          onClose={() => setViewingComm(null)}
+        />
       </section>
 
       {/* Notes */}

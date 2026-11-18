@@ -10,6 +10,7 @@ import {
   canPurgeDocuments,
   canSetDocumentLegalHold,
 } from '../../types/auth'
+import { CustomerCommunicationViewModal } from '../../components/CustomerCommunicationViewModal'
 import { PhotoCapturePanel } from '../../components/PhotoCapturePanel'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -147,6 +148,7 @@ export function AdminProjectFormPage() {
     emptyCommForm(profile?.full_name ?? ''),
   )
   const [editingCommId, setEditingCommId] = useState<string | null>(null)
+  const [viewingComm, setViewingComm] = useState<CustomerCommunication | null>(null)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -955,34 +957,51 @@ export function AdminProjectFormPage() {
                         From {c.senderName}
                       </p>
                       <p className="text-xs text-ink-subtle">Visible: {visibilityLabel(c.visibility)}</p>
-                      <p className="text-sm text-ink-muted line-clamp-2">{c.body}</p>
+                      <p className="whitespace-pre-wrap text-sm text-ink-muted line-clamp-2">
+                        {c.body}
+                      </p>
                     </div>
-                    {canManageComms && (
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEditComm(c)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          disabled={saving}
-                          onClick={() => void onDeleteComm(c.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setViewingComm(c)}
+                      >
+                        View
+                      </Button>
+                      {canManageComms && (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => startEditComm(c)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={saving}
+                            onClick={() => void onDeleteComm(c.id)}
+                          >
+                            Delete
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
           </Card>
+
+          <CustomerCommunicationViewModal
+            communication={viewingComm}
+            onClose={() => setViewingComm(null)}
+          />
 
           {canManageComms ? (
             <Card className="p-5">
