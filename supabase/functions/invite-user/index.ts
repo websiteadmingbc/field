@@ -1,5 +1,5 @@
 // Supabase Edge Function: invite a user and set their profile.
-// Deploy: npx supabase functions deploy invite-user --project-ref znkucrtehtyoatxfnozw
+// Deploy: npx supabase functions deploy invite-user --remote=znkucrtehtyoatxfnozw
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1'
 
 const corsHeaders = {

@@ -41,9 +41,22 @@ Invite emails need the Edge Function deployed once:
 
 ```bash
 npx supabase login
-npx supabase functions deploy invite-user --project-ref znkucrtehtyoatxfnozw
-npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --project-ref znkucrtehtyoatxfnozw
+npx supabase functions deploy invite-user --remote=znkucrtehtyoatxfnozw
+npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --remote=znkucrtehtyoatxfnozw
 ```
+
+### Ask Field (Operations)
+
+**Operations → Ask Field** runs read-only LLM briefings (presets + free-text) using the same Field query surface as the MCP tools.
+
+```bash
+npx supabase functions deploy ask-field --remote=znkucrtehtyoatxfnozw
+npx supabase secrets set OPENAI_API_KEY=sk-... --remote=znkucrtehtyoatxfnozw
+# optional:
+npx supabase secrets set OPENAI_MODEL=gpt-4o-mini --remote=znkucrtehtyoatxfnozw
+```
+
+Only Owner/Admin, General Manager, and Operations Manager can call it. The OpenAI key stays server-side.
 
 ## LLM demo (MCP)
 

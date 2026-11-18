@@ -15,6 +15,7 @@ import {
   Users,
   Building2,
   FileText,
+  MessageSquareText,
 } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { cn } from '../lib/utils'
@@ -226,6 +227,20 @@ const SECTIONS: HelpSection[] = [
       'Assign the role when inviting or editing App access on a personnel record — not by changing classification alone.',
     ],
     related: [{ label: 'Roles & permissions', to: '/admin/roles' }],
+  },
+  {
+    id: 'ask-field',
+    title: 'Ask Field',
+    summary: 'Read-only ops briefings from live Field data (presets or free-text).',
+    icon: MessageSquareText,
+    adminOnly: true,
+    body: [
+      'Open Operations → Ask Field.',
+      'Use a preset (ops brief, pipeline, team, notices, customer communications) or type a free-text question.',
+      'Answers are grounded in live Field queries — the same read-only surface as the Britton Field MCP tools. Ask Field cannot change jobs or people.',
+      'Requires the ask-field Edge Function and an OPENAI_API_KEY secret (see project README).',
+    ],
+    related: [{ label: 'Ask Field', to: '/admin/ask-field' }],
   },
   {
     id: 'projects',

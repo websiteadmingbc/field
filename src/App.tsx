@@ -18,6 +18,7 @@ import { HelpPage } from './pages/HelpPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { TeamPage } from './pages/TeamPage'
+import { AdminAskFieldPage } from './pages/admin/AdminAskFieldPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminPersonnelDetailPage } from './pages/admin/AdminPersonnelDetailPage'
 import { AdminPersonnelFormPage } from './pages/admin/AdminPersonnelFormPage'
@@ -61,6 +62,7 @@ export default function App() {
                       <Route path="projects" element={<AdminProjectsPage />} />
                       <Route path="projects/new" element={<AdminProjectFormPage />} />
                       <Route path="projects/:projectId" element={<AdminProjectFormPage />} />
+                      <Route path="ask-field" element={<AdminAskFieldPage />} />
                     </Route>
                   </Route>
 
