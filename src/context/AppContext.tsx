@@ -13,11 +13,20 @@ import { uid, todayISO } from '../lib/utils'
 import { getSupabase } from '../lib/supabase/client'
 import { loadRemoteAppData } from '../lib/supabase/loadAppData'
 import { extensionForImage, guessImageContentType } from '../lib/supabase/photos'
+import {
+  createCustomerCommunication,
+  deleteCustomerCommunication as remoteDeleteCustomerCommunication,
+  updateCustomerCommunication,
+} from '../lib/supabase/customerCommunications'
 import { addProjectNotice, updateProjectStatus as remoteUpdateStatus } from '../lib/supabase/projects'
 import { useAuth } from './AuthContext'
 import type {
   AppData,
   AppNotification,
+  CommunicationMessageType,
+  CommunicationPriority,
+  CommunicationVisibility,
+  CustomerCommunication,
   DailyLog,
   Job,
   JobNote,
@@ -28,6 +37,13 @@ import type {
   MaterialStatus,
   PhotoCategory,
 } from '../types'
+
+export type CustomerCommunicationInput = Partial<CustomerCommunication> & {
+  jobId: string
+  recipientName: string
+  senderName: string
+  body: string
+}
 
 interface AppContextValue {
   data: AppData
@@ -44,6 +60,8 @@ interface AppContextValue {
   addNote: (jobId: string, content: string) => void
   saveDailyLog: (log: Partial<DailyLog> & { jobId: string }, status: LogStatus) => string
   deleteDailyLog: (logId: string) => void
+  saveCustomerCommunication: (input: CustomerCommunicationInput) => Promise<string>
+  deleteCustomerCommunication: (id: string) => Promise<void>
   addPhoto: (input: {
     jobId: string
     file: File
@@ -367,6 +385,84 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [persist, remote, refreshRemote],
   )
 
+  const saveCustomerCommunication = useCallback(
+    async (input: CustomerCommunicationInput) => {
+      const now = new Date().toISOString()
+      const messageType: CommunicationMessageType = input.messageType ?? 'phone'
+      const priority: CommunicationPriority = input.priority ?? 'normal'
+      const visibility: CommunicationVisibility = input.visibility ?? 'all'
+      const communicatedOn = input.communicatedOn ?? todayISO()
+      const communicatedAt = input.communicatedAt ?? null
+      const deviceType = input.deviceType ?? ''
+
+      if (remote) {
+        if (!session?.user) throw new Error('Not signed in')
+        const payload = {
+          project_id: input.jobId,
+          recipient_name: input.recipientName,
+          sender_name: input.senderName,
+          communicated_on: communicatedOn,
+          communicated_at: communicatedAt,
+          device_type: deviceType,
+          message_type: messageType,
+          priority,
+          visibility,
+          body: input.body,
+          author_id: session.user.id,
+        }
+        const saved = input.id
+          ? await updateCustomerCommunication(input.id, payload)
+          : await createCustomerCommunication(payload)
+        await refreshRemote()
+        return saved.id
+      }
+
+      const id = input.id ?? uid('comm')
+      persist((prev) => {
+        const existing = input.id
+          ? prev.customerCommunications.find((c) => c.id === input.id)
+          : undefined
+        const next: CustomerCommunication = {
+          id,
+          jobId: input.jobId,
+          recipientName: input.recipientName,
+          senderName: input.senderName,
+          communicatedOn,
+          communicatedAt,
+          deviceType,
+          messageType,
+          priority,
+          visibility,
+          body: input.body,
+          authorId: prev.currentUserId,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        }
+        const customerCommunications = existing
+          ? prev.customerCommunications.map((c) => (c.id === existing.id ? next : c))
+          : [next, ...prev.customerCommunications]
+        return { ...prev, customerCommunications }
+      })
+      return id
+    },
+    [persist, remote, session?.user, refreshRemote],
+  )
+
+  const deleteCustomerCommunication = useCallback(
+    async (id: string) => {
+      if (remote) {
+        await remoteDeleteCustomerCommunication(id)
+        await refreshRemote()
+        return
+      }
+      persist((prev) => ({
+        ...prev,
+        customerCommunications: prev.customerCommunications.filter((c) => c.id !== id),
+      }))
+    },
+    [persist, remote, refreshRemote],
+  )
+
   const addPhoto = useCallback(
     async (input: {
       jobId: string
@@ -493,6 +589,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     addNote,
     saveDailyLog,
     deleteDailyLog,
+    saveCustomerCommunication,
+    deleteCustomerCommunication,
     addPhoto,
     markNotificationRead,
     markAllNotificationsRead,

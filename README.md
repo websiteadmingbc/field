@@ -45,6 +45,16 @@ npx supabase functions deploy invite-user --project-ref znkucrtehtyoatxfnozw
 npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --project-ref znkucrtehtyoatxfnozw
 ```
 
+## LLM demo (MCP)
+
+A read-only MCP server under `mcp/` lets Cursor (or other MCP clients) query live Field data.
+
+```bash
+cd mcp && npm install
+```
+
+Project config: `.cursor/mcp.json`. Reload MCP in Cursor Settings, then ask things like “What’s on hold in Field?” See `mcp/README.md`.
+
 ## Deploy
 
 Every push to `main` builds and deploys via `.github/workflows/deploy.yml`.

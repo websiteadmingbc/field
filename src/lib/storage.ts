@@ -14,7 +14,10 @@ export function loadAppData(): AppData {
     if (!raw) return createDemoData()
     const parsed = JSON.parse(raw) as AppData
     if (parsed.version !== DATA_VERSION) return createDemoData()
-    return parsed
+    return {
+      ...parsed,
+      customerCommunications: parsed.customerCommunications ?? [],
+    }
   } catch {
     return createDemoData()
   }

@@ -1,6 +1,7 @@
-import type { AppData, Contact, DailyLog, JobPhoto } from '../../types'
+import type { AppData, Contact, CustomerCommunication, DailyLog, JobPhoto } from '../../types'
 import { DATA_VERSION } from '../../types'
 import { getSupabase } from './client'
+import { rowToCustomerCommunication } from './customerCommunications'
 import { projectToJob } from './projects'
 import type { ProjectRow } from './database.types'
 
@@ -14,6 +15,7 @@ export async function loadRemoteAppData(userId: string): Promise<AppData> {
     { data: assignments, error: assignmentsError },
     { data: notices, error: noticesError },
     { data: logs, error: logsError },
+    { data: communications, error: communicationsError },
     { data: photos, error: photosError },
     { data: activity, error: activityError },
     { data: siteContacts, error: siteContactsError },
@@ -23,6 +25,11 @@ export async function loadRemoteAppData(userId: string): Promise<AppData> {
     supabase.from('project_assignments').select('*'),
     supabase.from('project_notices').select('*').order('created_at', { ascending: false }),
     supabase.from('daily_logs').select('*').order('log_date', { ascending: false }),
+    supabase
+      .from('customer_communications')
+      .select('*')
+      .order('communicated_on', { ascending: false })
+      .order('created_at', { ascending: false }),
     supabase.from('photos').select('*').order('created_at', { ascending: false }),
     supabase.from('activity').select('*').order('created_at', { ascending: false }).limit(100),
     supabase.from('site_contacts').select('*'),
@@ -34,6 +41,7 @@ export async function loadRemoteAppData(userId: string): Promise<AppData> {
     assignmentsError ||
     noticesError ||
     logsError ||
+    communicationsError ||
     photosError ||
     activityError ||
     siteContactsError
@@ -104,6 +112,10 @@ export async function loadRemoteAppData(userId: string): Promise<AppData> {
     authorId: l.author_id,
   }))
 
+  const customerCommunications: CustomerCommunication[] = (communications ?? []).map(
+    rowToCustomerCommunication,
+  )
+
   const jobPhotos: JobPhoto[] = (photos ?? []).map((p) => ({
     id: p.id,
     jobId: p.project_id,
@@ -120,6 +132,7 @@ export async function loadRemoteAppData(userId: string): Promise<AppData> {
     jobs,
     contacts,
     dailyLogs,
+    customerCommunications,
     notes: [],
     photos: jobPhotos,
     notifications: [],

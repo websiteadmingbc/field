@@ -38,6 +38,7 @@ export type ModuleKey =
   | 'change_orders'
   | 'schedules'
   | 'daily_logs'
+  | 'customer_communications'
   | 'photos_docs'
   | 'rfis'
   | 'submittals'
@@ -111,6 +112,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   change_orders: 'Change Orders',
   schedules: 'Schedules',
   daily_logs: 'Daily Logs',
+  customer_communications: 'Customer Communications',
   photos_docs: 'Photos / Documents',
   rfis: 'RFIs',
   submittals: 'Submittals',
@@ -155,6 +157,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     change_orders: p(ALL, 'company'),
     schedules: p(CVED, 'company'),
     daily_logs: p(CVED, 'company'),
+    customer_communications: p(CVED, 'company', 'Create on job in Operations; visibility gates field read'),
     photos_docs: p(CVED, 'company'),
     rfis: p(CVED, 'company'),
     submittals: p(CVED, 'company'),
@@ -179,6 +182,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     change_orders: p(VA, 'company'),
     schedules: p(CVE, 'company'),
     daily_logs: p(CVE, 'company'),
+    customer_communications: p(CVED, 'company', 'Create on job in Operations; visibility gates field read'),
     photos_docs: p(CVE, 'company'),
     rfis: p(CVE, 'company'),
     submittals: p(CVE, 'company'),
@@ -200,6 +204,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     contracts: p(V, 'company'),
     change_orders: p(V, 'project'),
     schedules: p(V, 'project'),
+    customer_communications: p(V, 'project', 'Visibility-filtered'),
     photos_docs: p(CV, 'project'),
     reports: p(V, 'project'),
     job_costing: p(V, 'project'),
@@ -212,6 +217,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     contracts: p(V, 'company'),
     schedules: p(VE, 'company'),
     daily_logs: p(V, 'company'),
+    customer_communications: p(V, 'company', 'Visibility-filtered'),
     photos_docs: p(CVE, 'company'),
     rfis: p(CVE, 'company'),
     submittals: p(CVE, 'company'),
@@ -226,6 +232,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     clients: p(V, 'company'),
     contracts: p(V, 'company'),
     change_orders: p(V, 'company'),
+    customer_communications: p(V, 'company', 'Visibility-filtered'),
     time_attendance: p(V, 'company'),
     purchase_orders: p(VE, 'company'),
     invoices_payments: p(CVED, 'company'),
@@ -241,6 +248,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     change_orders: p([...CVE, 'A'], 'assigned'),
     schedules: p(CVE, 'assigned'),
     daily_logs: p(CVE, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Visibility-filtered'),
     photos_docs: p(CVE, 'assigned'),
     rfis: p(CVE, 'assigned'),
     submittals: p(CVE, 'assigned'),
@@ -260,6 +268,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     clients: p(V, 'assigned'),
     schedules: p(VE, 'assigned'),
     daily_logs: p(VE, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Visibility-filtered'),
     photos_docs: p(CVE, 'assigned'),
     rfis: p(CVE, 'assigned'),
     submittals: p(CVE, 'assigned'),
@@ -274,6 +283,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     change_orders: p(CV, 'assigned'),
     schedules: p(VE, 'assigned'),
     daily_logs: p(CVE, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Visibility-filtered'),
     photos_docs: p(CVE, 'assigned'),
     rfis: p(CVE, 'assigned'),
     submittals: p(CVE, 'assigned'),
@@ -286,6 +296,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     projects: p(V, 'assigned'),
     schedules: p(VE, 'assigned'),
     daily_logs: p(CVE, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Visibility-filtered — supervisor+ rows'),
     photos_docs: p(CVE, 'assigned'),
     rfis: p(CV, 'assigned'),
     punch_lists: p(CVE, 'assigned'),
@@ -298,6 +309,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   safety_officer: {
     projects: p(V, 'company'),
     daily_logs: p(V, 'company'),
+    customer_communications: p(V, 'company', 'Visibility-filtered'),
     photos_docs: p(CV, 'company'),
     safety: p(CVED, 'company'),
     time_attendance: p(V, 'company'),
@@ -308,6 +320,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
     projects: p(V, 'assigned'),
     schedules: p(V, 'assigned'),
     daily_logs: p(CVE, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Visibility-filtered — supervisor+ rows'),
     photos_docs: p(CVE, 'assigned'),
     punch_lists: p(VE, 'assigned'),
     safety: p(CVE, 'assigned'),
@@ -319,6 +332,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   crew: {
     projects: p(V, 'assigned'),
     daily_logs: p(CV, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     photos_docs: p(CV, 'assigned'),
     safety: p(V, 'assigned'),
     time_attendance: p(CVE, 'self'),
@@ -327,6 +341,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   tradesperson: {
     projects: p(V, 'assigned'),
     daily_logs: p(CV, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     photos_docs: p(CV, 'assigned'),
     punch_lists: p(V, 'assigned'),
     safety: p(V, 'assigned'),
@@ -336,6 +351,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   equipment_operator: {
     projects: p(V, 'assigned'),
     daily_logs: p(CV, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     safety: p(V, 'assigned'),
     time_attendance: p(CVE, 'self'),
     equipment: p(VE, 'assigned'),
@@ -344,12 +360,14 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   laborer: {
     projects: p(V, 'assigned'),
     daily_logs: p(['C'], 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     safety: p(V, 'assigned'),
     time_attendance: p(CVE, 'self'),
   },
 
   apprentice: {
     projects: p(V, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     safety: p(V, 'assigned'),
     time_attendance: p(CV, 'self'),
   },
@@ -357,6 +375,7 @@ export const PERMISSION_MATRIX: Record<AppRole, Partial<Record<ModuleKey, Module
   subcontractor: {
     projects: p(V, 'assigned'),
     schedules: p(V, 'assigned'),
+    customer_communications: p(V, 'assigned', 'Only visibility=all'),
     photos_docs: p(CV, 'assigned'),
     rfis: p(CV, 'assigned'),
     submittals: p(CV, 'assigned'),

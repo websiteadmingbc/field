@@ -4,6 +4,7 @@ import {
   USER_MANAGER_ROLES,
   type AppRole,
 } from '../lib/rbac/matrix'
+import type { CommunicationVisibility } from './index'
 
 export type { AppRole }
 
@@ -108,4 +109,36 @@ export function canPinJobDocuments(role: AppRole | null | undefined): boolean {
 
 export function roleLabel(role: AppRole): string {
   return ROLE_LABELS[role] ?? role
+}
+
+/** Operations console roles — create/edit customer communications on a job. */
+export function canManageCustomerCommunications(role: AppRole | null | undefined): boolean {
+  return canAccessAdminConsole(role)
+}
+
+const SUPERVISOR_PLUS_ROLES: AppRole[] = [
+  'admin',
+  'general_manager',
+  'operations_manager',
+  'estimator',
+  'office_manager',
+  'bookkeeper',
+  'project_manager',
+  'project_coordinator',
+  'project_engineer',
+  'site_supervisor',
+  'safety_officer',
+  'crew_lead',
+]
+
+/** Whether the user’s role may see a communication with the given visibility. */
+export function canViewCustomerCommunication(
+  role: AppRole | null | undefined,
+  visibility: CommunicationVisibility,
+): boolean {
+  if (!role) return false
+  if (visibility === 'all') return true
+  if (visibility === 'operations') return canAccessAdminConsole(role)
+  if (visibility === 'supervisor') return SUPERVISOR_PLUS_ROLES.includes(role)
+  return false
 }

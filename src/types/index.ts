@@ -8,6 +8,10 @@ export type JobType =
   | 'Property Maintenance'
 export type PhotoCategory = 'before' | 'estimation' | 'progress' | 'after' | 'issue'
 export type LogStatus = 'draft' | 'submitted'
+export type CommunicationMessageType = 'text' | 'email' | 'phone' | 'other'
+export type CommunicationPriority = 'low' | 'normal' | 'high' | 'urgent'
+/** Who can see the record after save */
+export type CommunicationVisibility = 'all' | 'supervisor' | 'operations'
 export type MaterialStatus = 'needed' | 'ordered' | 'delivered' | 'missing'
 export type NotificationType =
   | 'assignment'
@@ -107,6 +111,23 @@ export interface JobNote {
   createdAt: string
 }
 
+export interface CustomerCommunication {
+  id: string
+  jobId: string
+  recipientName: string
+  senderName: string
+  communicatedOn: string
+  communicatedAt: string | null
+  deviceType: string
+  messageType: CommunicationMessageType
+  priority: CommunicationPriority
+  visibility: CommunicationVisibility
+  body: string
+  authorId: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface JobPhoto {
   id: string
   jobId: string
@@ -147,6 +168,7 @@ export interface AppData {
   jobs: Job[]
   contacts: Contact[]
   dailyLogs: DailyLog[]
+  customerCommunications: CustomerCommunication[]
   notes: JobNote[]
   photos: JobPhoto[]
   notifications: AppNotification[]

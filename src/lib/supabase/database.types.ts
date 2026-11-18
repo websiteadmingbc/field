@@ -1,5 +1,12 @@
 import type { AppRole } from '../../types/auth'
-import type { JobStatus, LogStatus, PhotoCategory } from '../../types'
+import type {
+  CommunicationMessageType,
+  CommunicationPriority,
+  CommunicationVisibility,
+  JobStatus,
+  LogStatus,
+  PhotoCategory,
+} from '../../types'
 import type {
   AssignmentStatus,
   CompanyRelationshipStatus,
@@ -156,6 +163,39 @@ export interface Database {
           status?: LogStatus
         }
         Update: Partial<Database['public']['Tables']['daily_logs']['Insert']>
+      }
+      customer_communications: {
+        Row: {
+          id: string
+          project_id: string
+          recipient_name: string
+          sender_name: string
+          communicated_on: string
+          communicated_at: string | null
+          device_type: string
+          message_type: CommunicationMessageType
+          priority: CommunicationPriority
+          visibility: CommunicationVisibility
+          body: string
+          author_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          recipient_name: string
+          sender_name: string
+          communicated_on?: string
+          communicated_at?: string | null
+          device_type?: string
+          message_type?: CommunicationMessageType
+          priority?: CommunicationPriority
+          visibility?: CommunicationVisibility
+          body: string
+          author_id?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['customer_communications']['Insert']>
       }
       photos: {
         Row: {

@@ -31,6 +31,7 @@ import {
   canPurgeDocuments,
   canSetDocumentLegalHold,
   canUploadJobSubmittals,
+  canViewCustomerCommunication,
 } from '../types/auth'
 import { isSupabaseConfigured } from '../lib/supabase/client'
 import {
@@ -45,7 +46,27 @@ import {
   phoneHref,
   staticMapPreviewUrl,
 } from '../lib/utils'
-import type { JobPhoto, JobStatus, MaterialStatus } from '../types'
+import type {
+  CommunicationMessageType,
+  CommunicationPriority,
+  JobPhoto,
+  JobStatus,
+  MaterialStatus,
+} from '../types'
+
+const COMM_MESSAGE_LABELS: Record<CommunicationMessageType, string> = {
+  text: 'Text',
+  email: 'Email',
+  phone: 'Phone',
+  other: 'Other',
+}
+
+const COMM_PRIORITY_LABELS: Record<CommunicationPriority, string> = {
+  low: 'Low',
+  normal: 'Normal',
+  high: 'High',
+  urgent: 'Urgent',
+}
 
 const statusOptions: JobStatus[] = ['scheduled', 'in_progress', 'on_hold', 'completed']
 const materialStatuses: MaterialStatus[] = ['needed', 'ordered', 'delivered', 'missing']
@@ -119,6 +140,22 @@ export function JobDetailPage() {
   const notes = useMemo(
     () => data.notes.filter((n) => n.jobId === job?.id),
     [data.notes, job?.id],
+  )
+
+  const communications = useMemo(
+    () =>
+      data.customerCommunications
+        .filter(
+          (c) =>
+            c.jobId === job?.id &&
+            canViewCustomerCommunication(profile?.app_role, c.visibility),
+        )
+        .sort((a, b) => {
+          const byDate = b.communicatedOn.localeCompare(a.communicatedOn)
+          if (byDate !== 0) return byDate
+          return b.createdAt.localeCompare(a.createdAt)
+        }),
+    [data.customerCommunications, job?.id, profile?.app_role],
   )
 
   if (!job) {
@@ -452,6 +489,47 @@ export function JobDetailPage() {
           canUploadSubmittals={uploadSubmittals}
           canPin={pinDocs || manageDocs}
         />
+      </section>
+
+      {/* Customer communication (visibility-filtered) */}
+      <section>
+        <SectionHeader
+          title="Customer communication"
+          subtitle="Logged by Operations — filtered to what your role can see"
+        />
+        <Card className="divide-y divide-border">
+          {communications.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-ink-muted">
+              No customer communications visible for your role.
+            </p>
+          ) : (
+            communications.map((c) => (
+              <div key={c.id} className="space-y-1 px-5 py-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-semibold text-ink">
+                    {c.recipientName}
+                    <span className="ml-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
+                      {COMM_PRIORITY_LABELS[c.priority]}
+                    </span>
+                  </p>
+                  <p className="text-xs text-ink-subtle">
+                    {formatShortDate(c.communicatedOn)}
+                    {c.communicatedAt
+                      ? ` · ${formatTime(c.communicatedAt.slice(0, 5))}`
+                      : ''}
+                  </p>
+                </div>
+                <p className="text-xs text-ink-muted">
+                  {COMM_MESSAGE_LABELS[c.messageType]}
+                  {c.deviceType ? ` · ${c.deviceType}` : ''}
+                  {' · From '}
+                  {c.senderName}
+                </p>
+                <p className="text-sm text-ink line-clamp-3">{c.body}</p>
+              </div>
+            ))
+          )}
+        </Card>
       </section>
 
       {/* Notes */}

@@ -5,6 +5,7 @@ import { JobDocumentsPanel } from '../../components/documents/JobDocumentsPanel'
 import { onJobCompletedDocuments } from '../../lib/supabase/documents'
 import { useAuth } from '../../context/AuthContext'
 import {
+  canManageCustomerCommunications,
   canPinJobDocuments,
   canPurgeDocuments,
   canSetDocumentLegalHold,
@@ -36,11 +37,75 @@ import {
 } from '../../lib/supabase/admin'
 import type { Profile } from '../../types/auth'
 import { roleLabel } from '../../types/auth'
-import { geocodeAddress, statusLabel } from '../../lib/utils'
+import { formatShortDate, formatTime, geocodeAddress, statusLabel, todayISO } from '../../lib/utils'
 import { useApp } from '../../context/AppContext'
-import type { JobPhoto } from '../../types'
+import type {
+  CommunicationMessageType,
+  CommunicationPriority,
+  CommunicationVisibility,
+  CustomerCommunication,
+  JobPhoto,
+} from '../../types'
 
-type Tab = 'details' | 'crew' | 'contacts' | 'documents' | 'photos'
+type Tab = 'details' | 'crew' | 'contacts' | 'communications' | 'documents' | 'photos'
+
+const MESSAGE_TYPE_OPTIONS: { value: CommunicationMessageType; label: string }[] = [
+  { value: 'text', label: 'Text' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone conversation' },
+  { value: 'other', label: 'Other' },
+]
+
+const PRIORITY_OPTIONS: { value: CommunicationPriority; label: string }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
+]
+
+const VISIBILITY_OPTIONS: { value: CommunicationVisibility; label: string }[] = [
+  { value: 'all', label: 'All (anyone on the job)' },
+  { value: 'supervisor', label: 'Supervisor+' },
+  { value: 'operations', label: 'Operations (GM / Ops / Admin)' },
+]
+
+type CommFormState = {
+  recipient_name: string
+  sender_name: string
+  communicated_on: string
+  communicated_at: string
+  device_type: string
+  message_type: CommunicationMessageType
+  priority: CommunicationPriority
+  visibility: CommunicationVisibility
+  body: string
+}
+
+function emptyCommForm(senderName = ''): CommFormState {
+  return {
+    recipient_name: '',
+    sender_name: senderName,
+    communicated_on: todayISO(),
+    communicated_at: '',
+    device_type: '',
+    message_type: 'phone',
+    priority: 'normal',
+    visibility: 'all',
+    body: '',
+  }
+}
+
+function visibilityLabel(v: CommunicationVisibility): string {
+  return VISIBILITY_OPTIONS.find((o) => o.value === v)?.label ?? v
+}
+
+function messageTypeLabel(v: CommunicationMessageType): string {
+  return MESSAGE_TYPE_OPTIONS.find((o) => o.value === v)?.label ?? v
+}
+
+function priorityLabel(v: CommunicationPriority): string {
+  return PRIORITY_OPTIONS.find((o) => o.value === v)?.label ?? v
+}
 
 const fieldClass =
   'mt-1.5 h-11 w-full rounded-md border border-border bg-surface px-3 text-ink outline-none focus:border-gold-line'
@@ -51,11 +116,18 @@ export function AdminProjectFormPage() {
   const { projectId } = useParams()
   const isNew = !projectId || projectId === 'new'
   const navigate = useNavigate()
-  const { refreshRemote, remote, data } = useApp()
+  const {
+    refreshRemote,
+    remote,
+    data,
+    saveCustomerCommunication,
+    deleteCustomerCommunication,
+  } = useApp()
   const { profile } = useAuth()
   const purgeDocs = canPurgeDocuments(profile?.app_role)
   const holdDocs = canSetDocumentLegalHold(profile?.app_role)
   const pinDocs = canPinJobDocuments(profile?.app_role)
+  const canManageComms = canManageCustomerCommunications(profile?.app_role)
 
   const [tab, setTab] = useState<Tab>('details')
   const [form, setForm] = useState<ProjectInput>(emptyProjectInput())
@@ -71,6 +143,10 @@ export function AdminProjectFormPage() {
     is_primary: false,
   })
   const [editingContactId, setEditingContactId] = useState<string | null>(null)
+  const [commForm, setCommForm] = useState<CommFormState>(() =>
+    emptyCommForm(profile?.full_name ?? ''),
+  )
+  const [editingCommId, setEditingCommId] = useState<string | null>(null)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +163,26 @@ export function AdminProjectFormPage() {
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.photos, projectId, isNew],
   )
+
+  const projectCommunications = useMemo(
+    () =>
+      !projectId || isNew
+        ? []
+        : data.customerCommunications
+            .filter((c) => c.jobId === projectId)
+            .sort((a, b) => {
+              const byDate = b.communicatedOn.localeCompare(a.communicatedOn)
+              if (byDate !== 0) return byDate
+              return b.createdAt.localeCompare(a.createdAt)
+            }),
+    [data.customerCommunications, projectId, isNew],
+  )
+
+  useEffect(() => {
+    if (!editingCommId && profile?.full_name) {
+      setCommForm((f) => (f.sender_name ? f : { ...f, sender_name: profile.full_name }))
+    }
+  }, [profile?.full_name, editingCommId])
 
   const title = useMemo(
     () => (isNew ? 'New Job' : form.name || 'Edit job'),
@@ -280,6 +376,77 @@ export function AdminProjectFormPage() {
     }
   }
 
+  function startEditComm(c: CustomerCommunication) {
+    setEditingCommId(c.id)
+    setCommForm({
+      recipient_name: c.recipientName,
+      sender_name: c.senderName,
+      communicated_on: c.communicatedOn,
+      communicated_at: c.communicatedAt ? c.communicatedAt.slice(0, 5) : '',
+      device_type: c.deviceType,
+      message_type: c.messageType,
+      priority: c.priority,
+      visibility: c.visibility,
+      body: c.body,
+    })
+    setNotice(null)
+    setError(null)
+  }
+
+  function cancelEditComm() {
+    setEditingCommId(null)
+    setCommForm(emptyCommForm(profile?.full_name ?? ''))
+  }
+
+  async function onSaveComm(e: FormEvent) {
+    e.preventDefault()
+    if (!projectId || isNew || !canManageComms) return
+    setSaving(true)
+    setError(null)
+    try {
+      if (!commForm.recipient_name.trim()) throw new Error('Recipient name is required.')
+      if (!commForm.sender_name.trim()) throw new Error('Sender name is required.')
+      if (!commForm.body.trim()) throw new Error('Message / notes are required.')
+      const wasEditing = Boolean(editingCommId)
+      await saveCustomerCommunication({
+        id: editingCommId ?? undefined,
+        jobId: projectId,
+        recipientName: commForm.recipient_name.trim(),
+        senderName: commForm.sender_name.trim(),
+        communicatedOn: commForm.communicated_on || todayISO(),
+        communicatedAt: commForm.communicated_at
+          ? `${commForm.communicated_at}:00`.slice(0, 8)
+          : null,
+        deviceType: commForm.device_type.trim(),
+        messageType: commForm.message_type,
+        priority: commForm.priority,
+        visibility: commForm.visibility,
+        body: commForm.body.trim(),
+      })
+      cancelEditComm()
+      setNotice(wasEditing ? 'Customer communication updated.' : 'Customer communication submitted.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save communication')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function onDeleteComm(id: string) {
+    if (!canManageComms || !confirm('Delete this customer communication?')) return
+    setSaving(true)
+    setError(null)
+    try {
+      await deleteCustomerCommunication(id)
+      if (editingCommId === id) cancelEditComm()
+      setNotice('Customer communication deleted.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function onArchiveProject() {
     if (!projectId || isNew) return
     if (!confirm('Archive this job? It will leave My Jobs lists but stay available in All Jobs when showing archived.'))
@@ -391,6 +558,7 @@ export function AdminProjectFormPage() {
               ['details', 'Details'],
               ['crew', 'Crew assignments'],
               ['contacts', 'Site contacts'],
+              ['communications', 'Communications'],
               ['documents', 'Documents'],
               ['photos', 'Photos'],
             ] as const
@@ -751,6 +919,217 @@ export function AdminProjectFormPage() {
               </div>
             </form>
           </Card>
+        </div>
+      )}
+
+      {!isNew && tab === 'communications' && projectId && (
+        <div className="space-y-4">
+          <Card className="space-y-3 p-5">
+            <SectionHeader
+              title="Customer communication"
+              subtitle="Conversations with the customer for this job. Visibility controls who can see each entry in the field app."
+            />
+            {projectCommunications.length === 0 ? (
+              <p className="text-sm text-ink-muted">No customer communications yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {projectCommunications.map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border px-3 py-3"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="font-semibold text-ink">
+                        {c.recipientName}
+                        <span className="ml-2 text-xs font-medium uppercase tracking-wider text-ink-muted">
+                          {priorityLabel(c.priority)}
+                        </span>
+                      </p>
+                      <p className="text-xs text-ink-muted">
+                        {formatShortDate(c.communicatedOn)}
+                        {c.communicatedAt ? ` · ${formatTime(c.communicatedAt.slice(0, 5))}` : ''}
+                        {' · '}
+                        {messageTypeLabel(c.messageType)}
+                        {c.deviceType ? ` · ${c.deviceType}` : ''}
+                        {' · '}
+                        From {c.senderName}
+                      </p>
+                      <p className="text-xs text-ink-subtle">Visible: {visibilityLabel(c.visibility)}</p>
+                      <p className="text-sm text-ink-muted line-clamp-2">{c.body}</p>
+                    </div>
+                    {canManageComms && (
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => startEditComm(c)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={saving}
+                          onClick={() => void onDeleteComm(c.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          {canManageComms ? (
+            <Card className="p-5">
+              <form onSubmit={(e) => void onSaveComm(e)} className="space-y-3">
+                <SectionHeader
+                  title={editingCommId ? 'Edit communication' : 'Log customer communication'}
+                  subtitle="Submit once — entry appears on this job for roles allowed by visibility"
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm font-semibold">
+                    Recipient name
+                    <input
+                      required
+                      value={commForm.recipient_name}
+                      onChange={(e) =>
+                        setCommForm((f) => ({ ...f, recipient_name: e.target.value }))
+                      }
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Sender name
+                    <input
+                      required
+                      value={commForm.sender_name}
+                      onChange={(e) => setCommForm((f) => ({ ...f, sender_name: e.target.value }))}
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Date
+                    <input
+                      type="date"
+                      required
+                      value={commForm.communicated_on}
+                      onChange={(e) =>
+                        setCommForm((f) => ({ ...f, communicated_on: e.target.value }))
+                      }
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Time
+                    <input
+                      type="time"
+                      value={commForm.communicated_at}
+                      onChange={(e) =>
+                        setCommForm((f) => ({ ...f, communicated_at: e.target.value }))
+                      }
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Device type
+                    <input
+                      value={commForm.device_type}
+                      onChange={(e) => setCommForm((f) => ({ ...f, device_type: e.target.value }))}
+                      placeholder="iPhone / Desktop"
+                      className={fieldClass}
+                    />
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Message type
+                    <select
+                      value={commForm.message_type}
+                      onChange={(e) =>
+                        setCommForm((f) => ({
+                          ...f,
+                          message_type: e.target.value as CommunicationMessageType,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      {MESSAGE_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Priority
+                    <select
+                      value={commForm.priority}
+                      onChange={(e) =>
+                        setCommForm((f) => ({
+                          ...f,
+                          priority: e.target.value as CommunicationPriority,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      {PRIORITY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm font-semibold">
+                    Visibility
+                    <select
+                      value={commForm.visibility}
+                      onChange={(e) =>
+                        setCommForm((f) => ({
+                          ...f,
+                          visibility: e.target.value as CommunicationVisibility,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      {VISIBILITY_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="block text-sm font-semibold">
+                  Message / notes
+                  <textarea
+                    required
+                    value={commForm.body}
+                    onChange={(e) => setCommForm((f) => ({ ...f, body: e.target.value }))}
+                    rows={4}
+                    className={areaClass}
+                    placeholder="What was discussed or sent…"
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? 'Saving…' : editingCommId ? 'Save changes' : 'Submit'}
+                  </Button>
+                  {editingCommId && (
+                    <Button type="button" variant="outline" onClick={cancelEditComm}>
+                      Cancel
+                    </Button>
+                  )}
+                </div>
+              </form>
+            </Card>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              Only Operations (Admin, GM, Ops Manager) can log customer communications.
+            </p>
+          )}
         </div>
       )}
 
