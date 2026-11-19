@@ -129,11 +129,26 @@ const TOOL_DEFS = [
   },
 ] as const
 
-const SYSTEM_PROMPT = `You are Ask Field for Great Britton Construction Operations.
+function firstName(fullName: string): string {
+  const part = fullName.trim().split(/\s+/)[0]
+  return part || fullName.trim()
+}
+
+function buildSystemPrompt(assistantName: string, userFullName: string): string {
+  const user = userFullName.trim()
+  const short = user ? firstName(user) : ''
+  const addressLine = user
+    ? `You are speaking with ${user}. Address them by name (prefer "${short}") when it fits naturally — especially at the start of a spoken briefing. Do not overuse their name in every sentence.`
+    : `The caller's name is unknown; do not invent a name for them.`
+
+  return `You are ${assistantName}, the Field operations assistant for Great Britton Construction.
+When it fits naturally (especially at the start of a spoken briefing), you may introduce yourself as ${assistantName}.
+${addressLine}
 You answer using ONLY the read-only Field tools provided. Never invent jobs, people, or communications.
 If data is missing, say so clearly. Prefer short spoken-style briefings with bullets and suggested next actions.
 Do not claim you can change data — you are read-only.
 When useful, start with field_summary, then drill into list_projects / notices / customer communications / people.`
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -146,6 +161,7 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const openaiKey = (Deno.env.get('OPENAI_API_KEY') || '').trim()
     const model = (Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini').trim()
+    const assistantName = (Deno.env.get('ASK_FIELD_ASSISTANT_NAME') || 'Scotty').trim() || 'Scotty'
 
     if (!openaiKey) {
       return json(
@@ -202,14 +218,18 @@ Deno.serve(async (req) => {
     if (!prompt) return json({ error: 'Prompt is required' }, 400)
     if (prompt.length > 4000) return json({ error: 'Prompt is too long' }, 400)
 
+    const callerName = String(callerProfile.full_name || '').trim()
     const toolsUsed: string[] = []
+    const requestBlock = preset
+      ? `Preset: ${preset}\n\nRequest:\n${prompt}`
+      : prompt
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt(assistantName, callerName) },
       {
         role: 'user',
-        content: preset
-          ? `Preset: ${preset}\n\nRequest:\n${prompt}`
-          : prompt,
+        content: callerName
+          ? `Caller: ${callerName}\n\n${requestBlock}`
+          : requestBlock,
       },
     ]
 
@@ -268,6 +288,7 @@ Deno.serve(async (req) => {
       preset,
       tools_used: [...new Set(toolsUsed)],
       model,
+      assistant_name: assistantName,
       asked_by: callerProfile.full_name,
     })
   } catch (err) {

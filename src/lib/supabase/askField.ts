@@ -51,12 +51,16 @@ export const ASK_FIELD_PRESETS: {
   },
 ]
 
+/** Display name for the Ask Field assistant persona (spoken + written). */
+export const ASK_FIELD_ASSISTANT_NAME = 'Scotty'
+
 export type AskFieldResult = {
   ok: true
   answer: string
   preset: string | null
   tools_used: string[]
   model: string
+  assistant_name?: string
   asked_by: string | null
 }
 

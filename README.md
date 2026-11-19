@@ -57,11 +57,13 @@ npx supabase secrets set OPENAI_API_KEY=sk-... --remote=znkucrtehtyoatxfnozw --y
 # optional:
 npx supabase secrets set OPENAI_MODEL=gpt-4o-mini --remote=znkucrtehtyoatxfnozw --yes
 npx supabase secrets set OPENAI_TTS_VOICE=alloy --remote=znkucrtehtyoatxfnozw --yes
+# optional persona name (default Scotty):
+npx supabase secrets set ASK_FIELD_ASSISTANT_NAME=Scotty --remote=znkucrtehtyoatxfnozw --yes
 ```
 
 Only Owner/Admin, General Manager, and Operations Manager can call it. The OpenAI key stays server-side.
 
-**Voice:** Talk uses Whisper (`ask-field-transcribe`); answers can play via OpenAI TTS (`ask-field-speak`). Allow microphone permission in the browser.
+**Voice:** Talk uses Whisper (`ask-field-transcribe`); answers can play via OpenAI TTS (`ask-field-speak`). Allow microphone permission in the browser. The assistant persona defaults to **Scotty**.
 
 ## LLM demo (MCP)
 

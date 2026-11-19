@@ -5,6 +5,7 @@ import { Card, SectionHeader } from '../../components/ui/Card'
 import { useAuth } from '../../context/AuthContext'
 import { isSupabaseConfigured } from '../../lib/supabase/client'
 import {
+  ASK_FIELD_ASSISTANT_NAME,
   ASK_FIELD_PRESETS,
   askField,
   blobToBase64,
@@ -29,6 +30,7 @@ export function AdminAskFieldPage() {
   const [answer, setAnswer] = useState<string | null>(null)
   const [toolsUsed, setToolsUsed] = useState<string[]>([])
   const [model, setModel] = useState<string | null>(null)
+  const [assistantName, setAssistantName] = useState(ASK_FIELD_ASSISTANT_NAME)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -77,6 +79,7 @@ export function AdminAskFieldPage() {
       setAnswer(result.answer)
       setToolsUsed(result.tools_used ?? [])
       setModel(result.model ?? null)
+      if (result.assistant_name) setAssistantName(result.assistant_name)
       if (autoSpeakRef.current && result.answer) {
         void playAnswer(result.answer)
       }
@@ -211,7 +214,7 @@ export function AdminAskFieldPage() {
       <Card className="space-y-4 p-5">
         <SectionHeader
           title="Ask Field"
-          subtitle="Read-only ops briefings from live Field data. Type, use a preset, or talk with Whisper → Ask Field → OpenAI TTS."
+          subtitle={`${assistantName} — read-only ops briefings from live Field data. Type, use a preset, or talk (Whisper → ${assistantName} → voice).`}
         />
 
         <div className="space-y-2">
@@ -264,7 +267,7 @@ export function AdminAskFieldPage() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Ask Field
+                  Ask {assistantName}
                 </>
               )}
             </Button>
@@ -315,10 +318,10 @@ export function AdminAskFieldPage() {
       {(answer || loading) && (
         <Card className="space-y-3 p-5">
           <SectionHeader
-            title="Answer"
+            title={`${assistantName} answered`}
             subtitle={
               loading
-                ? 'Querying Field data…'
+                ? `${assistantName} is querying Field data…`
                 : model
                   ? `Grounded in live Field tools${toolsUsed.length ? ` · used ${toolsUsed.join(', ')}` : ''} · ${model}`
                   : 'Grounded in live Field tools'
