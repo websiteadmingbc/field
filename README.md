@@ -50,13 +50,18 @@ npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --remote=znku
 **Operations → Ask Field** runs read-only LLM briefings (presets + free-text) using the same Field query surface as the MCP tools.
 
 ```bash
-npx supabase functions deploy ask-field --remote=znkucrtehtyoatxfnozw
-npx supabase secrets set OPENAI_API_KEY=sk-... --remote=znkucrtehtyoatxfnozw
+npx supabase functions deploy ask-field --remote=znkucrtehtyoatxfnozw --yes
+npx supabase functions deploy ask-field-transcribe --remote=znkucrtehtyoatxfnozw --yes
+npx supabase functions deploy ask-field-speak --remote=znkucrtehtyoatxfnozw --yes
+npx supabase secrets set OPENAI_API_KEY=sk-... --remote=znkucrtehtyoatxfnozw --yes
 # optional:
-npx supabase secrets set OPENAI_MODEL=gpt-4o-mini --remote=znkucrtehtyoatxfnozw
+npx supabase secrets set OPENAI_MODEL=gpt-4o-mini --remote=znkucrtehtyoatxfnozw --yes
+npx supabase secrets set OPENAI_TTS_VOICE=alloy --remote=znkucrtehtyoatxfnozw --yes
 ```
 
 Only Owner/Admin, General Manager, and Operations Manager can call it. The OpenAI key stays server-side.
+
+**Voice:** Talk uses Whisper (`ask-field-transcribe`); answers can play via OpenAI TTS (`ask-field-speak`). Allow microphone permission in the browser.
 
 ## LLM demo (MCP)
 
