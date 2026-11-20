@@ -138,10 +138,53 @@ function rowsFromObjects(objects: Record<string, unknown>[]): ImportedLine[] {
   return out
 }
 
+function normalizeNewlines(text: string): string {
+  return text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+/**
+ * Prose / scope formats like:
+ *   1. Demolition & Removal: $6,099.50
+ *      - bullet detail…
+ *   2. Deck Prep: $3,049.75
+ */
+function parseProseItemized(text: string): ImportedLine[] {
+  const lines = normalizeNewlines(text)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+
+  const itemRe =
+    /^(\d+)\.\s+(.+?):\s*(\$?\s*[\d,]+(?:\.\d{1,2})?)\s*$/i
+  const stopRe = /^(total|warranty|payment\s*schedule|notes?|exclusions?)\b/i
+
+  const out: ImportedLine[] = []
+  for (const line of lines) {
+    if (stopRe.test(line)) break
+    const m = line.match(itemRe)
+    if (!m) continue
+    const description = m[2].trim()
+    const amount = parseMoney(m[3])
+    if (!description || amount == null) continue
+    out.push({
+      description,
+      quantity: 1,
+      unit: 'ea',
+      unitPrice: amount,
+    })
+  }
+  return out
+}
+
+function looksLikeProseItemized(text: string): boolean {
+  const sample = normalizeNewlines(text)
+  const hits = sample.match(/^\d+\.\s+.+:\s*\$?\s*[\d,]+(?:\.\d{1,2})?\s*$/gim)
+  return (hits?.length ?? 0) >= 2
+}
+
 function parseDelimited(text: string, delimiter: string): Record<string, unknown>[] {
-  const lines = text
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
+  const lines = normalizeNewlines(text)
+    .split('\n')
     .map((l) => l.trimEnd())
     .filter((l) => l.trim().length > 0)
   if (lines.length === 0) return []
@@ -207,7 +250,7 @@ function parseDelimited(text: string, delimiter: string): Record<string, unknown
 }
 
 function detectDelimiter(text: string): string {
-  const sample = text.split(/\r?\n/).slice(0, 5).join('\n')
+  const sample = normalizeNewlines(text).split('\n').slice(0, 5).join('\n')
   const commas = (sample.match(/,/g) || []).length
   const tabs = (sample.match(/\t/g) || []).length
   const semis = (sample.match(/;/g) || []).length
@@ -256,11 +299,31 @@ export async function parseLineItemsFile(file: File): Promise<ImportedLine[]> {
     return rowsFromObjects(arr as Record<string, unknown>[])
   }
 
-  // CSV / TSV / TXT / anything text-like
+  // CSV / TSV / TXT / prose scope lists / anything text-like
   const text = await file.text()
   if (!text.trim()) throw new Error('File is empty.')
+
+  if (looksLikeProseItemized(text)) {
+    const prose = parseProseItemized(text)
+    if (prose.length > 0) return prose
+  }
+
   const delimiter = name.endsWith('.tsv') ? '\t' : detectDelimiter(text)
-  return rowsFromObjects(parseDelimited(text, delimiter))
+  const delimited = rowsFromObjects(parseDelimited(text, delimiter))
+  if (delimited.length > 0) return delimited
+
+  // Last resort: scan any "Label: $1,234.56" lines (non-numbered)
+  const loose = parseProseItemized(
+    normalizeNewlines(text)
+      .split('\n')
+      .map((l) => (/^\d+\./.test(l.trim()) ? l : l.replace(/^(\s*)/, '$11. ')))
+      .join('\n'),
+  )
+  if (loose.length > 0) return loose
+
+  throw new Error(
+    'No line items found. Use columns like Description and Amount/Price, or numbered scope lines like “1. Demolition: $6,099.50”.',
+  )
 }
 
 export function importedToLineDrafts(items: ImportedLine[]): LineDraft[] {

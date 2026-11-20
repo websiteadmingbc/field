@@ -106,8 +106,8 @@ export function BillingLineItemsEditor({
         </div>
       </div>
       <p className="text-xs text-ink-subtle">
-        Import CSV, TSV, TXT, Excel (.xlsx/.xls), ODS, or JSON with description and dollar amount
-        columns (e.g. Description, Qty, Unit, Price).
+        Import CSV, TSV, TXT, Excel (.xlsx/.xls), ODS, JSON, or scope prose like “1. Demolition:
+        $6,099.50”.
       </p>
       {importMsg && (
         <p className="rounded-md border border-emerald/30 bg-emerald-soft px-3 py-2 text-xs text-emerald">
