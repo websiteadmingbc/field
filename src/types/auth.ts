@@ -116,6 +116,11 @@ export function canManageCustomerCommunications(role: AppRole | null | undefined
   return canAccessAdminConsole(role)
 }
 
+/** Operations console roles — estimates, invoices, payments, PDF export. */
+export function canManageBilling(role: AppRole | null | undefined): boolean {
+  return canAccessAdminConsole(role)
+}
+
 const SUPERVISOR_PLUS_ROLES: AppRole[] = [
   'admin',
   'general_manager',

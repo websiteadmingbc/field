@@ -40,6 +40,16 @@ import type { Profile } from '../../types/auth'
 import { roleLabel } from '../../types/auth'
 import { formatShortDate, formatTime, geocodeAddress, statusLabel, todayISO } from '../../lib/utils'
 import { useApp } from '../../context/AppContext'
+import { listEstimates, listInvoices } from '../../lib/supabase/billing'
+import { isSupabaseConfigured } from '../../lib/supabase/client'
+import {
+  computeTotals,
+  ESTIMATE_STATUS_LABELS,
+  formatMoney,
+  INVOICE_STATUS_LABELS,
+  type Estimate,
+  type Invoice,
+} from '../../types/billing'
 import type {
   CommunicationMessageType,
   CommunicationPriority,
@@ -48,7 +58,7 @@ import type {
   JobPhoto,
 } from '../../types'
 
-type Tab = 'details' | 'crew' | 'contacts' | 'communications' | 'documents' | 'photos'
+type Tab = 'details' | 'crew' | 'contacts' | 'communications' | 'billing' | 'documents' | 'photos'
 
 const MESSAGE_TYPE_OPTIONS: { value: CommunicationMessageType; label: string }[] = [
   { value: 'text', label: 'Text' },
@@ -149,6 +159,9 @@ export function AdminProjectFormPage() {
   )
   const [editingCommId, setEditingCommId] = useState<string | null>(null)
   const [viewingComm, setViewingComm] = useState<CustomerCommunication | null>(null)
+  const [jobEstimates, setJobEstimates] = useState<Estimate[]>([])
+  const [jobInvoices, setJobInvoices] = useState<Invoice[]>([])
+  const [billingLoading, setBillingLoading] = useState(false)
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -185,6 +198,27 @@ export function AdminProjectFormPage() {
       setCommForm((f) => (f.sender_name ? f : { ...f, sender_name: profile.full_name }))
     }
   }, [profile?.full_name, editingCommId])
+
+  useEffect(() => {
+    if (isNew || !projectId || tab !== 'billing' || !isSupabaseConfigured()) return
+    let cancelled = false
+    setBillingLoading(true)
+    void Promise.all([listEstimates(projectId), listInvoices(projectId)])
+      .then(([estimates, invoices]) => {
+        if (cancelled) return
+        setJobEstimates(estimates)
+        setJobInvoices(invoices)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load billing')
+      })
+      .finally(() => {
+        if (!cancelled) setBillingLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isNew, projectId, tab])
 
   const title = useMemo(
     () => (isNew ? 'New Job' : form.name || 'Edit job'),
@@ -561,6 +595,7 @@ export function AdminProjectFormPage() {
               ['crew', 'Crew assignments'],
               ['contacts', 'Site contacts'],
               ['communications', 'Communications'],
+              ['billing', 'Billing'],
               ['documents', 'Documents'],
               ['photos', 'Photos'],
             ] as const
@@ -1149,6 +1184,105 @@ export function AdminProjectFormPage() {
               Only Operations (Admin, GM, Ops Manager) can log customer communications.
             </p>
           )}
+        </div>
+      )}
+
+      {!isNew && tab === 'billing' && projectId && (
+        <div className="space-y-4">
+          <Card className="space-y-3 p-5">
+            <SectionHeader
+              title="Estimates"
+              subtitle="Create and export PDF from Operations billing"
+              action={
+                <Link to={`/admin/billing/estimates/new?job=${projectId}`}>
+                  <Button size="sm">New estimate</Button>
+                </Link>
+              }
+            />
+            {billingLoading ? (
+              <p className="text-sm text-ink-muted">Loading…</p>
+            ) : jobEstimates.length === 0 ? (
+              <p className="text-sm text-ink-muted">No estimates for this job yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {jobEstimates.map((e) => {
+                  const totals = computeTotals(e.lineItems, e.taxRatePct)
+                  return (
+                    <li
+                      key={e.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+                    >
+                      <div>
+                        <Link
+                          to={`/admin/billing/estimates/${e.id}`}
+                          className="font-semibold text-ink hover:text-teal"
+                        >
+                          {e.estimateNumber}
+                        </Link>
+                        <p className="text-xs text-ink-muted">
+                          {ESTIMATE_STATUS_LABELS[e.status]} · {formatMoney(totals.total)}
+                        </p>
+                      </div>
+                      <Link to={`/admin/billing/estimates/${e.id}`}>
+                        <Button size="sm" variant="outline">
+                          Open
+                        </Button>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Card>
+
+          <Card className="space-y-3 p-5">
+            <SectionHeader
+              title="Invoices"
+              subtitle="Convert from an estimate or create directly"
+              action={
+                <Link to={`/admin/billing/invoices/new?job=${projectId}`}>
+                  <Button size="sm" variant="outline">
+                    New invoice
+                  </Button>
+                </Link>
+              }
+            />
+            {billingLoading ? (
+              <p className="text-sm text-ink-muted">Loading…</p>
+            ) : jobInvoices.length === 0 ? (
+              <p className="text-sm text-ink-muted">No invoices for this job yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {jobInvoices.map((inv) => {
+                  const totals = computeTotals(inv.lineItems, inv.taxRatePct, inv.amountPaid)
+                  return (
+                    <li
+                      key={inv.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"
+                    >
+                      <div>
+                        <Link
+                          to={`/admin/billing/invoices/${inv.id}`}
+                          className="font-semibold text-ink hover:text-teal"
+                        >
+                          {inv.invoiceNumber}
+                        </Link>
+                        <p className="text-xs text-ink-muted">
+                          {INVOICE_STATUS_LABELS[inv.status]} · Balance{' '}
+                          {formatMoney(totals.balanceDue ?? 0)}
+                        </p>
+                      </div>
+                      <Link to={`/admin/billing/invoices/${inv.id}`}>
+                        <Button size="sm" variant="outline">
+                          Open
+                        </Button>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Card>
         </div>
       )}
 

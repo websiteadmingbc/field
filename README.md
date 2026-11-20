@@ -45,6 +45,12 @@ npx supabase functions deploy invite-user --remote=znkucrtehtyoatxfnozw
 npx supabase secrets set SITE_URL=https://field.greatbrittongc.com --remote=znkucrtehtyoatxfnozw
 ```
 
+### Estimates & invoices (Operations)
+
+**Operations → Billing** (and **All Jobs → [job] → Billing**) supports Joist-style estimates and invoices: line items, tax, status, convert estimate → invoice, manual payment log, and **Export PDF**. Email send is deferred.
+
+Apply migration `supabase/migrations/20261119000000_estimates_invoices.sql` in the Supabase SQL editor (or your usual migrate flow) before using billing against live data.
+
 ### Ask Field (Operations)
 
 **Operations → Ask Field** runs read-only LLM briefings (presets + free-text) using the same Field query surface as the MCP tools.

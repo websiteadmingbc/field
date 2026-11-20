@@ -7,6 +7,7 @@ import type {
   LogStatus,
   PhotoCategory,
 } from '../../types'
+import type { EstimateStatus, InvoiceStatus } from '../../types/billing'
 import type {
   AssignmentStatus,
   CompanyRelationshipStatus,
@@ -196,6 +197,142 @@ export interface Database {
           author_id?: string | null
         }
         Update: Partial<Database['public']['Tables']['customer_communications']['Insert']>
+      }
+      estimates: {
+        Row: {
+          id: string
+          project_id: string
+          estimate_number: string
+          title: string
+          customer_name: string
+          customer_email: string
+          customer_phone: string
+          status: EstimateStatus
+          notes: string
+          tax_rate_pct: number
+          valid_until: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          estimate_number: string
+          title?: string
+          customer_name?: string
+          customer_email?: string
+          customer_phone?: string
+          status?: EstimateStatus
+          notes?: string
+          tax_rate_pct?: number
+          valid_until?: string | null
+          created_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['estimates']['Insert']>
+      }
+      estimate_line_items: {
+        Row: {
+          id: string
+          estimate_id: string
+          sort_order: number
+          description: string
+          quantity: number
+          unit: string
+          unit_price: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          estimate_id: string
+          sort_order?: number
+          description?: string
+          quantity?: number
+          unit?: string
+          unit_price?: number
+        }
+        Update: Partial<Database['public']['Tables']['estimate_line_items']['Insert']>
+      }
+      invoices: {
+        Row: {
+          id: string
+          project_id: string
+          estimate_id: string | null
+          invoice_number: string
+          title: string
+          customer_name: string
+          customer_email: string
+          customer_phone: string
+          status: InvoiceStatus
+          notes: string
+          tax_rate_pct: number
+          due_date: string | null
+          amount_paid: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          estimate_id?: string | null
+          invoice_number: string
+          title?: string
+          customer_name?: string
+          customer_email?: string
+          customer_phone?: string
+          status?: InvoiceStatus
+          notes?: string
+          tax_rate_pct?: number
+          due_date?: string | null
+          amount_paid?: number
+          created_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['invoices']['Insert']>
+      }
+      invoice_line_items: {
+        Row: {
+          id: string
+          invoice_id: string
+          sort_order: number
+          description: string
+          quantity: number
+          unit: string
+          unit_price: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          invoice_id: string
+          sort_order?: number
+          description?: string
+          quantity?: number
+          unit?: string
+          unit_price?: number
+        }
+        Update: Partial<Database['public']['Tables']['invoice_line_items']['Insert']>
+      }
+      invoice_payments: {
+        Row: {
+          id: string
+          invoice_id: string
+          amount: number
+          paid_on: string
+          method: string
+          note: string
+          recorded_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          invoice_id: string
+          amount: number
+          paid_on?: string
+          method?: string
+          note?: string
+          recorded_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['invoice_payments']['Insert']>
       }
       photos: {
         Row: {

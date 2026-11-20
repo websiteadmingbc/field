@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Briefcase, MessageSquareText, Shield, Users } from 'lucide-react'
+import { Briefcase, FileText, MessageSquareText, Shield, Users } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const tabs = [
   { to: '/admin/people', label: 'Personnel', icon: Users },
   { to: '/admin/roles', label: 'Roles & permissions', icon: Shield },
   { to: '/admin/projects', label: 'All Jobs', icon: Briefcase },
+  { to: '/admin/billing', label: 'Billing', icon: FileText },
   { to: '/admin/ask-field', label: 'Ask Field', icon: MessageSquareText },
 ]
 
@@ -19,7 +20,7 @@ export function AdminLayout() {
         </h1>
         <p className="mt-2 max-w-2xl text-ink-muted">
           Your personal <span className="font-semibold text-ink">Dashboard</span> is day-to-day work.
-          Stay here to manage the company — personnel, roles, jobs, and Ask Field briefings.
+          Stay here to manage the company — personnel, roles, jobs, billing, and Ask Field.
           Personnel type is independent of app role permissions.
         </p>
       </header>

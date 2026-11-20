@@ -19,6 +19,9 @@ import { PrivacyPage } from './pages/PrivacyPage'
 import { CustomersPage } from './pages/CustomersPage'
 import { TeamPage } from './pages/TeamPage'
 import { AdminAskFieldPage } from './pages/admin/AdminAskFieldPage'
+import { AdminBillingPage } from './pages/admin/AdminBillingPage'
+import { AdminEstimateFormPage } from './pages/admin/AdminEstimateFormPage'
+import { AdminInvoiceFormPage } from './pages/admin/AdminInvoiceFormPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { AdminPersonnelDetailPage } from './pages/admin/AdminPersonnelDetailPage'
 import { AdminPersonnelFormPage } from './pages/admin/AdminPersonnelFormPage'
@@ -62,6 +65,11 @@ export default function App() {
                       <Route path="projects" element={<AdminProjectsPage />} />
                       <Route path="projects/new" element={<AdminProjectFormPage />} />
                       <Route path="projects/:projectId" element={<AdminProjectFormPage />} />
+                      <Route path="billing" element={<AdminBillingPage />} />
+                      <Route path="billing/estimates/new" element={<AdminEstimateFormPage />} />
+                      <Route path="billing/estimates/:estimateId" element={<AdminEstimateFormPage />} />
+                      <Route path="billing/invoices/new" element={<AdminInvoiceFormPage />} />
+                      <Route path="billing/invoices/:invoiceId" element={<AdminInvoiceFormPage />} />
                       <Route path="ask-field" element={<AdminAskFieldPage />} />
                     </Route>
                   </Route>
