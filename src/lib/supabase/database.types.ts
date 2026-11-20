@@ -209,6 +209,8 @@ export interface Database {
           customer_phone: string
           status: EstimateStatus
           notes: string
+          warranty_clause: string
+          payment_schedule: unknown
           tax_rate_pct: number
           valid_until: string | null
           created_by: string | null
@@ -225,6 +227,8 @@ export interface Database {
           customer_phone?: string
           status?: EstimateStatus
           notes?: string
+          warranty_clause?: string
+          payment_schedule?: unknown
           tax_rate_pct?: number
           valid_until?: string | null
           created_by?: string | null
@@ -265,6 +269,8 @@ export interface Database {
           customer_phone: string
           status: InvoiceStatus
           notes: string
+          warranty_clause: string
+          payment_schedule: unknown
           tax_rate_pct: number
           due_date: string | null
           amount_paid: number
@@ -283,6 +289,8 @@ export interface Database {
           customer_phone?: string
           status?: InvoiceStatus
           notes?: string
+          warranty_clause?: string
+          payment_schedule?: unknown
           tax_rate_pct?: number
           due_date?: string | null
           amount_paid?: number

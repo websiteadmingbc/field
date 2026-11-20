@@ -5,7 +5,9 @@ import type {
   Invoice,
   InvoicePayment,
   InvoiceStatus,
+  PaymentScheduleItem,
 } from '../../types/billing'
+import { parsePaymentSchedule } from '../../types/billing'
 import { getSupabase } from './client'
 
 type EstimateRow = {
@@ -18,6 +20,8 @@ type EstimateRow = {
   customer_phone: string
   status: EstimateStatus
   notes: string
+  warranty_clause?: string | null
+  payment_schedule?: unknown
   tax_rate_pct: number | string
   valid_until: string | null
   created_by: string | null
@@ -36,6 +40,8 @@ type InvoiceRow = {
   customer_phone: string
   status: InvoiceStatus
   notes: string
+  warranty_clause?: string | null
+  payment_schedule?: unknown
   tax_rate_pct: number | string
   due_date: string | null
   amount_paid: number | string
@@ -90,7 +96,9 @@ function mapEstimate(row: EstimateRow, lines: LineRow[] = []): Estimate {
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
     status: row.status,
-    notes: row.notes,
+    notes: row.notes ?? '',
+    warrantyClause: row.warranty_clause ?? '',
+    paymentSchedule: parsePaymentSchedule(row.payment_schedule),
     taxRatePct: num(row.tax_rate_pct),
     validUntil: row.valid_until,
     createdBy: row.created_by,
@@ -111,7 +119,9 @@ function mapInvoice(row: InvoiceRow, lines: LineRow[] = []): Invoice {
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
     status: row.status,
-    notes: row.notes,
+    notes: row.notes ?? '',
+    warrantyClause: row.warranty_clause ?? '',
+    paymentSchedule: parsePaymentSchedule(row.payment_schedule),
     taxRatePct: num(row.tax_rate_pct),
     dueDate: row.due_date,
     amountPaid: num(row.amount_paid),
@@ -122,6 +132,16 @@ function mapInvoice(row: InvoiceRow, lines: LineRow[] = []): Invoice {
   }
 }
 
+function schedulePayload(items: PaymentScheduleItem[] | undefined) {
+  return (items ?? []).map((item) => ({
+    id: item.id,
+    label: item.label.trim(),
+    amount: Number(item.amount) || 0,
+    percent: item.percent,
+    note: item.note ?? '',
+  }))
+}
+
 export type EstimateInput = {
   projectId: string
   title: string
@@ -130,6 +150,8 @@ export type EstimateInput = {
   customerPhone?: string
   status?: EstimateStatus
   notes?: string
+  warrantyClause?: string
+  paymentSchedule?: PaymentScheduleItem[]
   taxRatePct?: number
   validUntil?: string | null
   lineItems: Array<{
@@ -149,6 +171,8 @@ export type InvoiceInput = {
   customerPhone?: string
   status?: InvoiceStatus
   notes?: string
+  warrantyClause?: string
+  paymentSchedule?: PaymentScheduleItem[]
   taxRatePct?: number
   dueDate?: string | null
   amountPaid?: number
@@ -248,6 +272,8 @@ export async function saveEstimate(
     customer_phone: (input.customerPhone ?? '').trim(),
     status: input.status ?? 'draft',
     notes: input.notes ?? '',
+    warranty_clause: input.warrantyClause ?? '',
+    payment_schedule: schedulePayload(input.paymentSchedule),
     tax_rate_pct: input.taxRatePct ?? 0,
     valid_until: input.validUntil || null,
   }
@@ -352,6 +378,8 @@ export async function saveInvoice(
     customer_phone: (input.customerPhone ?? '').trim(),
     status: input.status ?? 'draft',
     notes: input.notes ?? '',
+    warranty_clause: input.warrantyClause ?? '',
+    payment_schedule: schedulePayload(input.paymentSchedule),
     tax_rate_pct: input.taxRatePct ?? 0,
     due_date: input.dueDate || null,
     amount_paid: input.amountPaid ?? 0,
@@ -418,6 +446,8 @@ export async function convertEstimateToInvoice(
       customerPhone: estimate.customerPhone,
       status: 'draft',
       notes: estimate.notes,
+      warrantyClause: estimate.warrantyClause,
+      paymentSchedule: estimate.paymentSchedule,
       taxRatePct: estimate.taxRatePct,
       dueDate: null,
       amountPaid: 0,
@@ -494,6 +524,8 @@ export async function addInvoicePayment(input: {
       customerPhone: invoice.customerPhone,
       status,
       notes: invoice.notes,
+      warrantyClause: invoice.warrantyClause,
+      paymentSchedule: invoice.paymentSchedule,
       taxRatePct: invoice.taxRatePct,
       dueDate: invoice.dueDate,
       amountPaid,

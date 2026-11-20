@@ -7,6 +7,7 @@ import {
   emptyLineDraft,
   type LineDraft,
 } from '../../components/billing/BillingLineItemsEditor'
+import { PaymentScheduleEditor } from '../../components/billing/PaymentScheduleEditor'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
 import { useApp } from '../../context/AppContext'
@@ -21,9 +22,11 @@ import {
 } from '../../lib/supabase/billing'
 import {
   computeTotals,
+  defaultPaymentScheduleTemplate,
   ESTIMATE_STATUS_LABELS,
   formatMoney,
   type EstimateStatus,
+  type PaymentScheduleItem,
 } from '../../types/billing'
 
 const fieldClass =
@@ -46,6 +49,10 @@ export function AdminEstimateFormPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [status, setStatus] = useState<EstimateStatus>('draft')
   const [notes, setNotes] = useState('')
+  const [warrantyClause, setWarrantyClause] = useState('')
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleItem[]>(() =>
+    defaultPaymentScheduleTemplate(),
+  )
   const [taxRatePct, setTaxRatePct] = useState('0')
   const [validUntil, setValidUntil] = useState('')
   const [lines, setLines] = useState<LineDraft[]>([emptyLineDraft()])
@@ -77,6 +84,10 @@ export function AdminEstimateFormPage() {
       setCustomerPhone(e.customerPhone)
       setStatus(e.status)
       setNotes(e.notes)
+      setWarrantyClause(e.warrantyClause ?? '')
+      setPaymentSchedule(
+        e.paymentSchedule?.length ? e.paymentSchedule : defaultPaymentScheduleTemplate(),
+      )
       setTaxRatePct(String(e.taxRatePct))
       setValidUntil(e.validUntil ?? '')
       setEstimateNumber(e.estimateNumber)
@@ -130,6 +141,8 @@ export function AdminEstimateFormPage() {
           customerPhone,
           status,
           notes,
+          warrantyClause,
+          paymentSchedule,
           taxRatePct: Number(taxRatePct) || 0,
           validUntil: validUntil || null,
           lineItems: draftsToLineInputs(lines),
@@ -327,6 +340,23 @@ export function AdminEstimateFormPage() {
             <p>Tax: {formatMoney(totals.tax)}</p>
             <p className="font-semibold">Total: {formatMoney(totals.total)}</p>
           </div>
+
+          <PaymentScheduleEditor
+            items={paymentSchedule}
+            onChange={setPaymentSchedule}
+            disabled={saving}
+          />
+
+          <label className="block text-sm font-semibold">
+            Warranty / statement clause
+            <textarea
+              value={warrantyClause}
+              onChange={(e) => setWarrantyClause(e.target.value)}
+              className={areaClass}
+              rows={4}
+              placeholder="Warranty or statement language shown below the line items on the PDF…"
+            />
+          </label>
 
           <label className="block text-sm font-semibold">
             Notes

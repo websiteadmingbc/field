@@ -7,6 +7,7 @@ import {
   emptyLineDraft,
   type LineDraft,
 } from '../../components/billing/BillingLineItemsEditor'
+import { PaymentScheduleEditor } from '../../components/billing/PaymentScheduleEditor'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
 import { useApp } from '../../context/AppContext'
@@ -22,10 +23,12 @@ import {
 } from '../../lib/supabase/billing'
 import {
   computeTotals,
+  defaultPaymentScheduleTemplate,
   formatMoney,
   INVOICE_STATUS_LABELS,
   type InvoicePayment,
   type InvoiceStatus,
+  type PaymentScheduleItem,
 } from '../../types/billing'
 import { todayISO } from '../../lib/utils'
 
@@ -49,6 +52,10 @@ export function AdminInvoiceFormPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [status, setStatus] = useState<InvoiceStatus>('draft')
   const [notes, setNotes] = useState('')
+  const [warrantyClause, setWarrantyClause] = useState('')
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentScheduleItem[]>(() =>
+    defaultPaymentScheduleTemplate(),
+  )
   const [taxRatePct, setTaxRatePct] = useState('0')
   const [dueDate, setDueDate] = useState('')
   const [amountPaid, setAmountPaid] = useState(0)
@@ -87,6 +94,10 @@ export function AdminInvoiceFormPage() {
       setCustomerPhone(inv.customerPhone)
       setStatus(inv.status)
       setNotes(inv.notes)
+      setWarrantyClause(inv.warrantyClause ?? '')
+      setPaymentSchedule(
+        inv.paymentSchedule?.length ? inv.paymentSchedule : defaultPaymentScheduleTemplate(),
+      )
       setTaxRatePct(String(inv.taxRatePct))
       setDueDate(inv.dueDate ?? '')
       setAmountPaid(inv.amountPaid)
@@ -144,6 +155,8 @@ export function AdminInvoiceFormPage() {
           customerPhone,
           status,
           notes,
+          warrantyClause,
+          paymentSchedule,
           taxRatePct: Number(taxRatePct) || 0,
           dueDate: dueDate || null,
           amountPaid,
@@ -349,6 +362,23 @@ export function AdminInvoiceFormPage() {
             <p>Paid: {formatMoney(amountPaid)}</p>
             <p className="font-semibold">Balance due: {formatMoney(totals.balanceDue ?? 0)}</p>
           </div>
+
+          <PaymentScheduleEditor
+            items={paymentSchedule}
+            onChange={setPaymentSchedule}
+            disabled={saving}
+          />
+
+          <label className="block text-sm font-semibold">
+            Warranty / statement clause
+            <textarea
+              value={warrantyClause}
+              onChange={(e) => setWarrantyClause(e.target.value)}
+              className={areaClass}
+              rows={4}
+              placeholder="Warranty or statement language shown below the line items on the PDF…"
+            />
+          </label>
 
           <label className="block text-sm font-semibold">
             Notes

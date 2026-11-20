@@ -7,6 +7,7 @@ import {
   type BillingLineItem,
   type Estimate,
   type Invoice,
+  type PaymentScheduleItem,
 } from '../../types/billing'
 
 type JobContext = {
@@ -65,6 +66,86 @@ function buildLineRows(items: BillingLineItem[]) {
   ])
 }
 
+function ensureSpace(doc: jsPDF, y: number, needed: number): number {
+  const pageHeight = doc.internal.pageSize.getHeight()
+  if (y + needed > pageHeight - 14) {
+    doc.addPage()
+    return 20
+  }
+  return y
+}
+
+function appendPaymentSchedule(doc: jsPDF, y: number, schedule: PaymentScheduleItem[]): number {
+  const rows = schedule.filter((row) => row.label.trim() || row.amount || row.percent != null)
+  if (!rows.length) return y
+
+  y = ensureSpace(doc, y, 24)
+  y += 10
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('Payment schedule', 14, y)
+  y += 4
+
+  autoTable(doc, {
+    startY: y,
+    head: [['Milestone', 'Amount', '%', 'Note']],
+    body: rows.map((row) => [
+      row.label || '—',
+      formatMoney(row.amount || 0),
+      row.percent != null ? `${row.percent}%` : '—',
+      row.note || '',
+    ]),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [20, 90, 90] },
+    columnStyles: {
+      1: { halign: 'right' },
+      2: { halign: 'right' },
+    },
+  })
+
+  return (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY || y + 20
+}
+
+function appendWarrantyClause(doc: jsPDF, y: number, warranty: string): number {
+  const text = warranty.trim()
+  if (!text) return y
+
+  y = ensureSpace(doc, y, 28)
+  y += 12
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('Warranty / statement', 14, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  const lines = doc.splitTextToSize(text, 180) as string[]
+  for (const line of lines) {
+    y = ensureSpace(doc, y, 8)
+    doc.text(line, 14, y)
+    y += 5
+  }
+  return y
+}
+
+function appendNotes(doc: jsPDF, y: number, notes: string): number {
+  const text = notes.trim()
+  if (!text) return y
+
+  y = ensureSpace(doc, y, 20)
+  y += 12
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.text('Notes', 14, y)
+  y += 5
+  doc.setFont('helvetica', 'normal')
+  const lines = doc.splitTextToSize(text, 180) as string[]
+  for (const line of lines) {
+    y = ensureSpace(doc, y, 8)
+    doc.text(line, 14, y)
+    y += 5
+  }
+  return y
+}
+
 export function downloadEstimatePdf(estimate: Estimate, job: JobContext) {
   const doc = new jsPDF()
   companyHeader(doc, 'estimate', estimate.estimateNumber)
@@ -120,16 +201,9 @@ export function downloadEstimatePdf(estimate: Estimate, job: JobContext) {
   doc.setFont('helvetica', 'bold')
   doc.text(`Total: ${formatMoney(totals.total)}`, 196, ty, { align: 'right' })
 
-  if (estimate.notes.trim()) {
-    ty += 12
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text('Notes', 14, ty)
-    ty += 5
-    doc.setFont('helvetica', 'normal')
-    const notes = doc.splitTextToSize(estimate.notes, 180)
-    doc.text(notes, 14, ty)
-  }
+  ty = appendPaymentSchedule(doc, ty, estimate.paymentSchedule ?? [])
+  ty = appendWarrantyClause(doc, ty, estimate.warrantyClause ?? '')
+  appendNotes(doc, ty, estimate.notes ?? '')
 
   doc.save(`${estimate.estimateNumber}.pdf`)
 }
@@ -195,16 +269,9 @@ export function downloadInvoicePdf(invoice: Invoice, job: JobContext) {
   doc.setFont('helvetica', 'bold')
   doc.text(`Balance due: ${formatMoney(totals.balanceDue ?? 0)}`, 196, ty, { align: 'right' })
 
-  if (invoice.notes.trim()) {
-    ty += 12
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text('Notes', 14, ty)
-    ty += 5
-    doc.setFont('helvetica', 'normal')
-    const notes = doc.splitTextToSize(invoice.notes, 180)
-    doc.text(notes, 14, ty)
-  }
+  ty = appendPaymentSchedule(doc, ty, invoice.paymentSchedule ?? [])
+  ty = appendWarrantyClause(doc, ty, invoice.warrantyClause ?? '')
+  appendNotes(doc, ty, invoice.notes ?? '')
 
   doc.save(`${invoice.invoiceNumber}.pdf`)
 }
