@@ -25,6 +25,7 @@ import {
   defaultPaymentScheduleTemplate,
   ESTIMATE_STATUS_LABELS,
   formatMoney,
+  type Estimate,
   type EstimateStatus,
   type PaymentScheduleItem,
 } from '../../types/billing'
@@ -34,8 +35,24 @@ const fieldClass =
 const areaClass =
   'mt-1.5 min-h-[88px] w-full rounded-md border border-border bg-surface px-3 py-2 text-ink outline-none focus:border-gold-line'
 
+function linesFromEstimate(e: Estimate): LineDraft[] {
+  if (!e.lineItems.length) return [emptyLineDraft()]
+  return e.lineItems.map((l) => ({
+    key: l.id,
+    description: l.description,
+    quantity: String(l.quantity),
+    unit: l.unit,
+    unitPrice: String(l.unitPrice),
+  }))
+}
+
+/** Remount on route id so create → saved id never keeps stale “new” state. */
 export function AdminEstimateFormPage() {
   const { estimateId } = useParams()
+  return <EstimateEditor key={estimateId ?? 'new'} estimateId={estimateId} />
+}
+
+function EstimateEditor({ estimateId }: { estimateId: string | undefined }) {
   const [search] = useSearchParams()
   const isNew = !estimateId || estimateId === 'new'
   const navigate = useNavigate()
@@ -57,7 +74,9 @@ export function AdminEstimateFormPage() {
   const [validUntil, setValidUntil] = useState('')
   const [lines, setLines] = useState<LineDraft[]>([emptyLineDraft()])
   const [estimateNumber, setEstimateNumber] = useState<string | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(isNew ? null : estimateId)
   const [loading, setLoading] = useState(!isNew)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -68,46 +87,44 @@ export function AdminEstimateFormPage() {
     [lines, taxRatePct],
   )
 
+  const hydrate = useCallback((e: Estimate) => {
+    setDocumentId(e.id)
+    setProjectId(e.projectId)
+    setTitle(e.title)
+    setCustomerName(e.customerName)
+    setCustomerEmail(e.customerEmail)
+    setCustomerPhone(e.customerPhone)
+    setStatus(e.status)
+    setNotes(e.notes)
+    setWarrantyClause(e.warrantyClause ?? '')
+    setPaymentSchedule(
+      e.paymentSchedule?.length ? e.paymentSchedule : defaultPaymentScheduleTemplate(),
+    )
+    setTaxRatePct(String(e.taxRatePct))
+    setValidUntil(e.validUntil ?? '')
+    setEstimateNumber(e.estimateNumber)
+    setLines(linesFromEstimate(e))
+  }, [])
+
   const load = useCallback(async () => {
     if (isNew || !estimateId) {
       setLoading(false)
+      setLoadError(null)
       return
     }
     setLoading(true)
+    setLoadError(null)
+    setError(null)
     try {
       const e = await getEstimate(estimateId)
       if (!e) throw new Error('Estimate not found')
-      setProjectId(e.projectId)
-      setTitle(e.title)
-      setCustomerName(e.customerName)
-      setCustomerEmail(e.customerEmail)
-      setCustomerPhone(e.customerPhone)
-      setStatus(e.status)
-      setNotes(e.notes)
-      setWarrantyClause(e.warrantyClause ?? '')
-      setPaymentSchedule(
-        e.paymentSchedule?.length ? e.paymentSchedule : defaultPaymentScheduleTemplate(),
-      )
-      setTaxRatePct(String(e.taxRatePct))
-      setValidUntil(e.validUntil ?? '')
-      setEstimateNumber(e.estimateNumber)
-      setLines(
-        e.lineItems.length
-          ? e.lineItems.map((l) => ({
-              key: l.id,
-              description: l.description,
-              quantity: String(l.quantity),
-              unit: l.unit,
-              unitPrice: String(l.unitPrice),
-            }))
-          : [emptyLineDraft()],
-      )
+      hydrate(e)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Load failed')
+      setLoadError(err instanceof Error ? err.message : 'Load failed')
     } finally {
       setLoading(false)
     }
-  }, [estimateId, isNew])
+  }, [estimateId, hydrate, isNew])
 
   useEffect(() => {
     void load()
@@ -131,6 +148,7 @@ export function AdminEstimateFormPage() {
     }
     setSaving(true)
     setError(null)
+    setNotice(null)
     try {
       const saved = await saveEstimate(
         {
@@ -147,12 +165,15 @@ export function AdminEstimateFormPage() {
           validUntil: validUntil || null,
           lineItems: draftsToLineInputs(lines),
         },
-        { id: isNew ? undefined : estimateId, createdBy: session?.user?.id },
+        {
+          id: isNew ? undefined : documentId ?? estimateId,
+          createdBy: session?.user?.id,
+        },
       )
+      hydrate(saved)
       setNotice('Estimate saved.')
-      if (isNew) navigate(`/admin/billing/estimates/${saved.id}`, { replace: true })
-      else {
-        setEstimateNumber(saved.estimateNumber)
+      if (isNew || estimateId !== saved.id) {
+        navigate(`/admin/billing/estimates/${saved.id}`, { replace: true })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -162,10 +183,11 @@ export function AdminEstimateFormPage() {
   }
 
   async function onDelete() {
-    if (isNew || !estimateId || !confirm('Delete this estimate?')) return
+    const id = documentId ?? estimateId
+    if (isNew || !id || !confirm('Delete this estimate?')) return
     setSaving(true)
     try {
-      await deleteEstimate(estimateId)
+      await deleteEstimate(id)
       navigate('/admin/billing')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed')
@@ -174,8 +196,9 @@ export function AdminEstimateFormPage() {
   }
 
   async function onPdf() {
-    if (isNew || !estimateId || !job) return
-    const e = await getEstimate(estimateId)
+    const id = documentId ?? estimateId
+    if (isNew || !id || !job) return
+    const e = await getEstimate(id)
     if (!e) return
     downloadEstimatePdf(e, {
       jobNumber: job.jobNumber,
@@ -188,11 +211,12 @@ export function AdminEstimateFormPage() {
   }
 
   async function onConvert() {
-    if (isNew || !estimateId) return
+    const id = documentId ?? estimateId
+    if (isNew || !id) return
     setSaving(true)
     setError(null)
     try {
-      const inv = await convertEstimateToInvoice(estimateId, session?.user?.id)
+      const inv = await convertEstimateToInvoice(id, session?.user?.id)
       navigate(`/admin/billing/invoices/${inv.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Convert failed')
@@ -202,6 +226,35 @@ export function AdminEstimateFormPage() {
 
   if (loading) return <p className="text-sm text-ink-muted">Loading estimate…</p>
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <Link
+          to="/admin/billing"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:text-teal"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Estimates
+        </Link>
+        <Card className="space-y-3 p-5">
+          <SectionHeader title="Couldn’t open estimate" subtitle={loadError} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => void load()}>
+              Retry
+            </Button>
+            <Link to="/admin/billing">
+              <Button type="button" variant="outline">
+                Back to estimates
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  const editingExisting = !isNew && !!documentId
+
   return (
     <div className="space-y-4">
       <Link
@@ -209,16 +262,20 @@ export function AdminEstimateFormPage() {
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:text-teal"
       >
         <ArrowLeft className="h-4 w-4" />
-        Billing
+        Estimates
       </Link>
 
       <form onSubmit={(e) => void onSave(e)} className="space-y-4">
         <Card className="space-y-4 p-5">
           <SectionHeader
             title={isNew ? 'New estimate' : estimateNumber || 'Estimate'}
-            subtitle="Line items, tax, and PDF export"
+            subtitle={
+              editingExisting
+                ? 'View and edit this estimate, then save changes'
+                : 'Line items, payment schedule, warranty, and PDF export'
+            }
             action={
-              !isNew ? (
+              editingExisting ? (
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => void onPdf()}>
                     <Download className="h-4 w-4" />
@@ -256,7 +313,7 @@ export function AdminEstimateFormPage() {
               <select
                 required
                 value={projectId}
-                disabled={!isNew}
+                disabled={editingExisting}
                 onChange={(e) => setProjectId(e.target.value)}
                 className={fieldClass}
               >
@@ -370,9 +427,9 @@ export function AdminEstimateFormPage() {
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save estimate'}
+              {saving ? 'Saving…' : editingExisting ? 'Save changes' : 'Create estimate'}
             </Button>
-            {!isNew && (
+            {editingExisting && (
               <Button type="button" variant="danger" disabled={saving} onClick={() => void onDelete()}>
                 <Trash2 className="h-4 w-4" />
                 Delete

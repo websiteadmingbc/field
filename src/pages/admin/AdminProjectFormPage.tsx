@@ -1225,7 +1225,7 @@ export function AdminProjectFormPage() {
                       </div>
                       <Link to={`/admin/billing/estimates/${e.id}`}>
                         <Button size="sm" variant="outline">
-                          Open
+                          Open / edit
                         </Button>
                       </Link>
                     </li>
@@ -1274,7 +1274,7 @@ export function AdminProjectFormPage() {
                       </div>
                       <Link to={`/admin/billing/invoices/${inv.id}`}>
                         <Button size="sm" variant="outline">
-                          Open
+                          Open / edit
                         </Button>
                       </Link>
                     </li>

@@ -282,7 +282,11 @@ export async function saveEstimate(
   if (estimateId) {
     const { error } = await supabase.from('estimates').update(payload).eq('id', estimateId)
     if (error) throw error
-    await supabase.from('estimate_line_items').delete().eq('estimate_id', estimateId)
+    const { error: deleteError } = await supabase
+      .from('estimate_line_items')
+      .delete()
+      .eq('estimate_id', estimateId)
+    if (deleteError) throw deleteError
   } else {
     const estimate_number = await nextDocumentNumber('EST')
     const { data, error } = await supabase
@@ -389,7 +393,11 @@ export async function saveInvoice(
   if (invoiceId) {
     const { error } = await supabase.from('invoices').update(payload).eq('id', invoiceId)
     if (error) throw error
-    await supabase.from('invoice_line_items').delete().eq('invoice_id', invoiceId)
+    const { error: deleteError } = await supabase
+      .from('invoice_line_items')
+      .delete()
+      .eq('invoice_id', invoiceId)
+    if (deleteError) throw deleteError
   } else {
     const invoice_number = await nextDocumentNumber('INV')
     const { data, error } = await supabase

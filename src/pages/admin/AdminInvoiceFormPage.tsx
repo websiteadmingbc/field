@@ -26,6 +26,7 @@ import {
   defaultPaymentScheduleTemplate,
   formatMoney,
   INVOICE_STATUS_LABELS,
+  type Invoice,
   type InvoicePayment,
   type InvoiceStatus,
   type PaymentScheduleItem,
@@ -37,8 +38,24 @@ const fieldClass =
 const areaClass =
   'mt-1.5 min-h-[88px] w-full rounded-md border border-border bg-surface px-3 py-2 text-ink outline-none focus:border-gold-line'
 
+function linesFromInvoice(inv: Invoice): LineDraft[] {
+  if (!inv.lineItems.length) return [emptyLineDraft()]
+  return inv.lineItems.map((l) => ({
+    key: l.id,
+    description: l.description,
+    quantity: String(l.quantity),
+    unit: l.unit,
+    unitPrice: String(l.unitPrice),
+  }))
+}
+
+/** Remount on route id so create → saved id never keeps stale “new” state. */
 export function AdminInvoiceFormPage() {
   const { invoiceId } = useParams()
+  return <InvoiceEditor key={invoiceId ?? 'new'} invoiceId={invoiceId} />
+}
+
+function InvoiceEditor({ invoiceId }: { invoiceId: string | undefined }) {
   const [search] = useSearchParams()
   const isNew = !invoiceId || invoiceId === 'new'
   const navigate = useNavigate()
@@ -62,12 +79,14 @@ export function AdminInvoiceFormPage() {
   const [estimateId, setEstimateId] = useState<string | null>(null)
   const [lines, setLines] = useState<LineDraft[]>([emptyLineDraft()])
   const [invoiceNumber, setInvoiceNumber] = useState<string | null>(null)
+  const [documentId, setDocumentId] = useState<string | null>(isNew ? null : invoiceId)
   const [payments, setPayments] = useState<InvoicePayment[]>([])
   const [payAmount, setPayAmount] = useState('')
   const [payDate, setPayDate] = useState(todayISO())
   const [payMethod, setPayMethod] = useState('check')
   const [payNote, setPayNote] = useState('')
   const [loading, setLoading] = useState(!isNew)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -78,49 +97,47 @@ export function AdminInvoiceFormPage() {
     [lines, taxRatePct, amountPaid],
   )
 
+  const hydrate = useCallback((inv: Invoice) => {
+    setDocumentId(inv.id)
+    setProjectId(inv.projectId)
+    setTitle(inv.title)
+    setCustomerName(inv.customerName)
+    setCustomerEmail(inv.customerEmail)
+    setCustomerPhone(inv.customerPhone)
+    setStatus(inv.status)
+    setNotes(inv.notes)
+    setWarrantyClause(inv.warrantyClause ?? '')
+    setPaymentSchedule(
+      inv.paymentSchedule?.length ? inv.paymentSchedule : defaultPaymentScheduleTemplate(),
+    )
+    setTaxRatePct(String(inv.taxRatePct))
+    setDueDate(inv.dueDate ?? '')
+    setAmountPaid(inv.amountPaid)
+    setEstimateId(inv.estimateId)
+    setInvoiceNumber(inv.invoiceNumber)
+    setLines(linesFromInvoice(inv))
+  }, [])
+
   const load = useCallback(async () => {
     if (isNew || !invoiceId) {
       setLoading(false)
+      setLoadError(null)
       return
     }
     setLoading(true)
+    setLoadError(null)
+    setError(null)
     try {
       const inv = await getInvoice(invoiceId)
       if (!inv) throw new Error('Invoice not found')
-      setProjectId(inv.projectId)
-      setTitle(inv.title)
-      setCustomerName(inv.customerName)
-      setCustomerEmail(inv.customerEmail)
-      setCustomerPhone(inv.customerPhone)
-      setStatus(inv.status)
-      setNotes(inv.notes)
-      setWarrantyClause(inv.warrantyClause ?? '')
-      setPaymentSchedule(
-        inv.paymentSchedule?.length ? inv.paymentSchedule : defaultPaymentScheduleTemplate(),
-      )
-      setTaxRatePct(String(inv.taxRatePct))
-      setDueDate(inv.dueDate ?? '')
-      setAmountPaid(inv.amountPaid)
-      setEstimateId(inv.estimateId)
-      setInvoiceNumber(inv.invoiceNumber)
-      setLines(
-        inv.lineItems.length
-          ? inv.lineItems.map((l) => ({
-              key: l.id,
-              description: l.description,
-              quantity: String(l.quantity),
-              unit: l.unit,
-              unitPrice: String(l.unitPrice),
-            }))
-          : [emptyLineDraft()],
-      )
+      hydrate(inv)
       setPayments(await listInvoicePayments(invoiceId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Load failed')
+      setLoadError(err instanceof Error ? err.message : 'Load failed')
     } finally {
       setLoading(false)
     }
-  }, [invoiceId, isNew])
+  }, [hydrate, invoiceId, isNew])
 
   useEffect(() => {
     void load()
@@ -144,6 +161,7 @@ export function AdminInvoiceFormPage() {
     }
     setSaving(true)
     setError(null)
+    setNotice(null)
     try {
       const saved = await saveInvoice(
         {
@@ -162,11 +180,16 @@ export function AdminInvoiceFormPage() {
           amountPaid,
           lineItems: draftsToLineInputs(lines),
         },
-        { id: isNew ? undefined : invoiceId, createdBy: session?.user?.id },
+        {
+          id: isNew ? undefined : documentId ?? invoiceId,
+          createdBy: session?.user?.id,
+        },
       )
+      hydrate(saved)
       setNotice('Invoice saved.')
-      if (isNew) navigate(`/admin/billing/invoices/${saved.id}`, { replace: true })
-      else setInvoiceNumber(saved.invoiceNumber)
+      if (isNew || invoiceId !== saved.id) {
+        navigate(`/admin/billing/invoices/${saved.id}`, { replace: true })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
@@ -175,11 +198,12 @@ export function AdminInvoiceFormPage() {
   }
 
   async function onDelete() {
-    if (isNew || !invoiceId || !confirm('Delete this invoice?')) return
+    const id = documentId ?? invoiceId
+    if (isNew || !id || !confirm('Delete this invoice?')) return
     setSaving(true)
     try {
-      await deleteInvoice(invoiceId)
-      navigate('/admin/billing')
+      await deleteInvoice(id)
+      navigate('/admin/billing?tab=invoices')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed')
       setSaving(false)
@@ -187,8 +211,9 @@ export function AdminInvoiceFormPage() {
   }
 
   async function onPdf() {
-    if (isNew || !invoiceId || !job) return
-    const inv = await getInvoice(invoiceId)
+    const id = documentId ?? invoiceId
+    if (isNew || !id || !job) return
+    const inv = await getInvoice(id)
     if (!inv) return
     downloadInvoicePdf(inv, {
       jobNumber: job.jobNumber,
@@ -202,7 +227,8 @@ export function AdminInvoiceFormPage() {
 
   async function onAddPayment(e: FormEvent) {
     e.preventDefault()
-    if (isNew || !invoiceId) return
+    const id = documentId ?? invoiceId
+    if (isNew || !id) return
     const amount = Number(payAmount)
     if (!amount || amount <= 0) {
       setError('Enter a payment amount.')
@@ -212,16 +238,15 @@ export function AdminInvoiceFormPage() {
     setError(null)
     try {
       const updated = await addInvoicePayment({
-        invoiceId,
+        invoiceId: id,
         amount,
         paidOn: payDate || todayISO(),
         method: payMethod,
         note: payNote,
         recordedBy: session?.user?.id,
       })
-      setAmountPaid(updated.amountPaid)
-      setStatus(updated.status)
-      setPayments(await listInvoicePayments(invoiceId))
+      hydrate(updated)
+      setPayments(await listInvoicePayments(id))
       setPayAmount('')
       setPayNote('')
       setNotice('Payment recorded.')
@@ -234,23 +259,56 @@ export function AdminInvoiceFormPage() {
 
   if (loading) return <p className="text-sm text-ink-muted">Loading invoice…</p>
 
+  if (loadError) {
+    return (
+      <div className="space-y-4">
+        <Link
+          to="/admin/billing?tab=invoices"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:text-teal"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Invoices
+        </Link>
+        <Card className="space-y-3 p-5">
+          <SectionHeader title="Couldn’t open invoice" subtitle={loadError} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => void load()}>
+              Retry
+            </Button>
+            <Link to="/admin/billing?tab=invoices">
+              <Button type="button" variant="outline">
+                Back to invoices
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  const editingExisting = !isNew && !!documentId
+
   return (
     <div className="space-y-4">
       <Link
-        to="/admin/billing"
+        to="/admin/billing?tab=invoices"
         className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted hover:text-teal"
       >
         <ArrowLeft className="h-4 w-4" />
-        Billing
+        Invoices
       </Link>
 
       <form onSubmit={(e) => void onSave(e)} className="space-y-4">
         <Card className="space-y-4 p-5">
           <SectionHeader
             title={isNew ? 'New invoice' : invoiceNumber || 'Invoice'}
-            subtitle="Line items, payments, and PDF export"
+            subtitle={
+              editingExisting
+                ? 'View and edit this invoice, then save changes'
+                : 'Line items, payment schedule, warranty, and PDF export'
+            }
             action={
-              !isNew ? (
+              editingExisting ? (
                 <Button type="button" size="sm" variant="outline" onClick={() => void onPdf()}>
                   <Download className="h-4 w-4" />
                   Export PDF
@@ -276,7 +334,7 @@ export function AdminInvoiceFormPage() {
               <select
                 required
                 value={projectId}
-                disabled={!isNew}
+                disabled={editingExisting}
                 onChange={(e) => setProjectId(e.target.value)}
                 className={fieldClass}
               >
@@ -392,9 +450,9 @@ export function AdminInvoiceFormPage() {
 
           <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Save invoice'}
+              {saving ? 'Saving…' : editingExisting ? 'Save changes' : 'Create invoice'}
             </Button>
-            {!isNew && (
+            {editingExisting && (
               <Button type="button" variant="danger" disabled={saving} onClick={() => void onDelete()}>
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -404,7 +462,7 @@ export function AdminInvoiceFormPage() {
         </Card>
       </form>
 
-      {!isNew && invoiceId && (
+      {editingExisting && (
         <Card className="space-y-4 p-5">
           <SectionHeader title="Payments" subtitle="Manual payment log (no online checkout yet)" />
           {payments.length === 0 ? (

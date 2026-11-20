@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { FileText, Plus, Receipt } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
@@ -19,9 +19,14 @@ import { isSupabaseConfigured } from '../../lib/supabase/client'
 
 type Tab = 'estimates' | 'invoices'
 
+function tabFromSearch(raw: string | null): Tab {
+  return raw === 'invoices' ? 'invoices' : 'estimates'
+}
+
 export function AdminBillingPage() {
   const { data } = useApp()
-  const [tab, setTab] = useState<Tab>('estimates')
+  const [search, setSearch] = useSearchParams()
+  const tab = tabFromSearch(search.get('tab'))
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +35,16 @@ export function AdminBillingPage() {
   const jobsById = useMemo(
     () => Object.fromEntries(data.jobs.map((j) => [j.id, j])),
     [data.jobs],
+  )
+
+  const setTab = useCallback(
+    (next: Tab) => {
+      const params = new URLSearchParams(search)
+      if (next === 'estimates') params.delete('tab')
+      else params.set('tab', next)
+      setSearch(params, { replace: true })
+    },
+    [search, setSearch],
   )
 
   const load = useCallback(async () => {
@@ -60,7 +75,7 @@ export function AdminBillingPage() {
       <Card className="space-y-4 p-5">
         <SectionHeader
           title="Estimates & invoices"
-          subtitle="Joist-style job billing — draft, convert, and export PDF. Email send comes later."
+          subtitle="Create, open, edit, and export PDFs. Email send comes later."
           action={
             <div className="flex flex-wrap gap-2">
               <Link to="/admin/billing/estimates/new">
@@ -82,10 +97,10 @@ export function AdminBillingPage() {
         <div className="flex flex-wrap gap-2">
           {(
             [
-              ['estimates', 'Estimates', FileText],
-              ['invoices', 'Invoices', Receipt],
+              ['estimates', 'Estimates', FileText, estimates.length],
+              ['invoices', 'Invoices', Receipt, invoices.length],
             ] as const
-          ).map(([id, label, Icon]) => (
+          ).map(([id, label, Icon, count]) => (
             <button
               key={id}
               type="button"
@@ -98,6 +113,7 @@ export function AdminBillingPage() {
             >
               <Icon className="h-4 w-4" />
               {label}
+              <span className="tabular-nums opacity-80">({count})</span>
             </button>
           ))}
         </div>
@@ -129,7 +145,7 @@ export function AdminBillingPage() {
                 const totals = computeTotals(e.lineItems, e.taxRatePct)
                 return (
                   <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                    <div>
+                    <div className="min-w-0">
                       <Link
                         to={`/admin/billing/estimates/${e.id}`}
                         className="font-semibold text-ink hover:text-teal"
@@ -144,7 +160,14 @@ export function AdminBillingPage() {
                         {ESTIMATE_STATUS_LABELS[e.status]} · {formatShortDate(e.createdAt)}
                       </p>
                     </div>
-                    <p className="text-sm font-semibold text-ink">{formatMoney(totals.total)}</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm font-semibold text-ink">{formatMoney(totals.total)}</p>
+                      <Link to={`/admin/billing/estimates/${e.id}`}>
+                        <Button size="sm" variant="outline">
+                          Open / edit
+                        </Button>
+                      </Link>
+                    </div>
                   </li>
                 )
               })}
@@ -154,7 +177,7 @@ export function AdminBillingPage() {
           <EmptyState
             icon={<Receipt className="h-6 w-6" />}
             title="No invoices yet"
-            description="Create an invoice or convert an approved estimate."
+            description="Create an invoice or convert an estimate. Saved invoices appear here so you can open and edit them."
             action={
               <Link to="/admin/billing/invoices/new" className="text-sm font-semibold text-teal">
                 New invoice
@@ -171,7 +194,7 @@ export function AdminBillingPage() {
                   key={inv.id}
                   className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <Link
                       to={`/admin/billing/invoices/${inv.id}`}
                       className="font-semibold text-ink hover:text-teal"
@@ -187,11 +210,18 @@ export function AdminBillingPage() {
                       {inv.dueDate ? formatShortDate(inv.dueDate) : '—'}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-ink">{formatMoney(totals.total)}</p>
-                    <p className="text-xs text-ink-muted">
-                      Balance {formatMoney(totals.balanceDue ?? 0)}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-ink">{formatMoney(totals.total)}</p>
+                      <p className="text-xs text-ink-muted">
+                        Balance {formatMoney(totals.balanceDue ?? 0)}
+                      </p>
+                    </div>
+                    <Link to={`/admin/billing/invoices/${inv.id}`}>
+                      <Button size="sm" variant="outline">
+                        Open / edit
+                      </Button>
+                    </Link>
                   </div>
                 </li>
               )
