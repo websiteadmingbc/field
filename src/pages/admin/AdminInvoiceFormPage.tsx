@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Eye, Trash2 } from 'lucide-react'
 import {
   BillingLineItemsEditor,
   draftsToLineInputs,
   emptyLineDraft,
   type LineDraft,
 } from '../../components/billing/BillingLineItemsEditor'
+import { BillingPdfPreviewModal } from '../../components/billing/BillingPdfPreviewModal'
 import { PaymentScheduleEditor } from '../../components/billing/PaymentScheduleEditor'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
 import { useApp } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext'
-import { downloadInvoicePdf } from '../../lib/billing/pdf'
+import { buildInvoicePdf, downloadInvoicePdf, type BuiltPdf } from '../../lib/billing/pdf'
 import { isSupabaseConfigured } from '../../lib/supabase/client'
 import {
   addInvoicePayment,
@@ -90,6 +91,7 @@ function InvoiceEditor({ invoiceId }: { invoiceId: string | undefined }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pdfPreview, setPdfPreview] = useState<BuiltPdf | null>(null)
 
   const job = useMemo(() => data.jobs.find((j) => j.id === projectId), [data.jobs, projectId])
   const totals = useMemo(
@@ -210,19 +212,44 @@ function InvoiceEditor({ invoiceId }: { invoiceId: string | undefined }) {
     }
   }
 
-  async function onPdf() {
-    const id = documentId ?? invoiceId
-    if (isNew || !id || !job) return
-    const inv = await getInvoice(id)
-    if (!inv) return
-    downloadInvoicePdf(inv, {
+  function jobContext() {
+    if (!job) return null
+    return {
       jobNumber: job.jobNumber,
       jobName: job.name,
       address: job.address,
       city: job.city,
       state: job.state,
       zip: job.zip,
-    })
+    }
+  }
+
+  async function onPreviewPdf() {
+    const id = documentId ?? invoiceId
+    const ctx = jobContext()
+    if (isNew || !id || !ctx) return
+    setError(null)
+    try {
+      const inv = await getInvoice(id)
+      if (!inv) throw new Error('Invoice not found')
+      setPdfPreview(buildInvoicePdf(inv, ctx))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF preview failed')
+    }
+  }
+
+  async function onDownloadPdf() {
+    const id = documentId ?? invoiceId
+    const ctx = jobContext()
+    if (isNew || !id || !ctx) return
+    setError(null)
+    try {
+      const inv = await getInvoice(id)
+      if (!inv) throw new Error('Invoice not found')
+      downloadInvoicePdf(inv, ctx)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF download failed')
+    }
   }
 
   async function onAddPayment(e: FormEvent) {
@@ -309,10 +336,16 @@ function InvoiceEditor({ invoiceId }: { invoiceId: string | undefined }) {
             }
             action={
               editingExisting ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => void onPdf()}>
-                  <Download className="h-4 w-4" />
-                  Export PDF
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => void onPreviewPdf()}>
+                    <Eye className="h-4 w-4" />
+                    Preview PDF
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void onDownloadPdf()}>
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </Button>
+                </div>
               ) : null
             }
           />
@@ -526,6 +559,12 @@ function InvoiceEditor({ invoiceId }: { invoiceId: string | undefined }) {
           </form>
         </Card>
       )}
+
+      <BillingPdfPreviewModal
+        pdf={pdfPreview}
+        title={invoiceNumber || title || 'Invoice'}
+        onClose={() => setPdfPreview(null)}
+      />
     </div>
   )
 }

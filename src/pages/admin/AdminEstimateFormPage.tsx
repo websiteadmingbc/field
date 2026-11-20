@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Download, FileOutput, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, Eye, FileOutput, Trash2 } from 'lucide-react'
 import {
   BillingLineItemsEditor,
   draftsToLineInputs,
   emptyLineDraft,
   type LineDraft,
 } from '../../components/billing/BillingLineItemsEditor'
+import { BillingPdfPreviewModal } from '../../components/billing/BillingPdfPreviewModal'
 import { PaymentScheduleEditor } from '../../components/billing/PaymentScheduleEditor'
 import { Button } from '../../components/ui/Button'
 import { Card, SectionHeader } from '../../components/ui/Card'
 import { useApp } from '../../context/AppContext'
 import { useAuth } from '../../context/AuthContext'
-import { downloadEstimatePdf } from '../../lib/billing/pdf'
+import { buildEstimatePdf, downloadEstimatePdf, type BuiltPdf } from '../../lib/billing/pdf'
 import { isSupabaseConfigured } from '../../lib/supabase/client'
 import {
   convertEstimateToInvoice,
@@ -80,6 +81,7 @@ function EstimateEditor({ estimateId }: { estimateId: string | undefined }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pdfPreview, setPdfPreview] = useState<BuiltPdf | null>(null)
 
   const job = useMemo(() => data.jobs.find((j) => j.id === projectId), [data.jobs, projectId])
   const totals = useMemo(
@@ -195,19 +197,44 @@ function EstimateEditor({ estimateId }: { estimateId: string | undefined }) {
     }
   }
 
-  async function onPdf() {
-    const id = documentId ?? estimateId
-    if (isNew || !id || !job) return
-    const e = await getEstimate(id)
-    if (!e) return
-    downloadEstimatePdf(e, {
+  function jobContext() {
+    if (!job) return null
+    return {
       jobNumber: job.jobNumber,
       jobName: job.name,
       address: job.address,
       city: job.city,
       state: job.state,
       zip: job.zip,
-    })
+    }
+  }
+
+  async function onPreviewPdf() {
+    const id = documentId ?? estimateId
+    const ctx = jobContext()
+    if (isNew || !id || !ctx) return
+    setError(null)
+    try {
+      const e = await getEstimate(id)
+      if (!e) throw new Error('Estimate not found')
+      setPdfPreview(buildEstimatePdf(e, ctx))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF preview failed')
+    }
+  }
+
+  async function onDownloadPdf() {
+    const id = documentId ?? estimateId
+    const ctx = jobContext()
+    if (isNew || !id || !ctx) return
+    setError(null)
+    try {
+      const e = await getEstimate(id)
+      if (!e) throw new Error('Estimate not found')
+      downloadEstimatePdf(e, ctx)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'PDF download failed')
+    }
   }
 
   async function onConvert() {
@@ -277,9 +304,13 @@ function EstimateEditor({ estimateId }: { estimateId: string | undefined }) {
             action={
               editingExisting ? (
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={() => void onPdf()}>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void onPreviewPdf()}>
+                    <Eye className="h-4 w-4" />
+                    Preview PDF
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void onDownloadPdf()}>
                     <Download className="h-4 w-4" />
-                    Export PDF
+                    Download PDF
                   </Button>
                   <Button
                     type="button"
@@ -438,6 +469,12 @@ function EstimateEditor({ estimateId }: { estimateId: string | undefined }) {
           </div>
         </Card>
       </form>
+
+      <BillingPdfPreviewModal
+        pdf={pdfPreview}
+        title={estimateNumber || title || 'Estimate'}
+        onClose={() => setPdfPreview(null)}
+      />
     </div>
   )
 }
